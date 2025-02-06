@@ -1,0 +1,321 @@
+---
+title: 'Estimating K600 from streammetabolizer for GBL'
+author: "Kelly Loria"
+date: "2025-01-31"
+output:
+   html_document:
+    theme: united
+    highlight: tango
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=html}
+<style type="text/css">
+body, td {font-size: 12px;}
+code.r{font-size: 8px;}
+pre {font-size: 10px}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = F, message = F)
+knitr::opts_knit$set(root.dir = '/Users/kellyloria/Documents/Publications/2024_stream_metab_output/GBU_k600/')
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+
+```
+
+```{r, echo = F, message = F}
+### Packages
+setwd("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/GBU_k600/")
+
+library(tidyverse)
+library(lubridate)
+library(dataRetrieval)
+library(viridis)
+library(cowplot)
+library(zoo)
+library(readxl)
+library(ggpubr)
+library(streamMetabolizer)
+```
+## Background
+This is a small, turbulent, shaded, streamed with a fair amount of fine particulate organic matter. 
+
+## Identifying reasonable modeled estimates of K600
+We then ran the normal stream metabolizer model: `b_Kb_oipi_tr_plrckm.stan` to get modeled K600 to see if we could resolve the negative correlation between ER and K600.
+Priors on `K600_lnQ_nodes_meanlog` were set as 5 bins based on `rnorm(1000, mean = logQ_mean, sd = logQ_sd)` centered around the mean and logQ va;ues 1-2 sd away from the mean. 
+
+### Load GBL versions of metab data from different model segments with normal prior for gas exchange. 
+We chose segments of time where we believe GPP occurred and was greater than 0. 
+These chunks of time are from a previous model where we binned flow and incorporated measured and estimated K600 priors from gas exchange measurements a the reach. 
+
+```{r, warning=F, size = 'small', echo=FALSE}
+met.Jun21 <- read_csv("./GBU_Jun21_2025-02-01_daily.csv") %>%
+  mutate(year = year(date))%>%
+  mutate(jday = yday(date))%>%
+  mutate(mon = month(date))%>%
+  mutate(lab = "Jun21")%>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  filter(K600_daily_Rhat<1.1)
+
+fits.Jun21 <- read_csv("./GBU_Jun21_2025-02-01_errors.csv_mod_and_obs_DO.csv") %>%
+  mutate(week = week(solar.time))%>%
+  mutate(jday = yday(solar.time)) %>%
+  mutate(lab = "Jun21")%>%
+  mutate(
+    DO_pr_sat = c((DO.obs/DO.sat) * 100), 
+    DO_pr_sat_mod = c((DO.mod/DO.sat) * 100))
+
+met.May21 <- read_csv("./GBU_May21_2025-02-01_daily.csv") %>%
+  mutate(year = year(date))%>%
+  mutate(jday = yday(date))%>%
+  mutate(mon = month(date))%>%
+  mutate(lab = "May21")%>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean)  %>%
+  filter(K600_daily_Rhat<1.05)
+
+fits.May21 <- read_csv("./GBU_May21_2025-02-01_errors.csv_mod_and_obs_DO.csv") %>%
+  mutate(week = week(solar.time))%>%
+  mutate(jday = yday(solar.time)) %>%
+    mutate(lab = "May21")%>%
+  mutate(
+    DO_pr_sat = c((DO.obs/DO.sat) * 100), 
+    DO_pr_sat_mod = c((DO.mod/DO.sat) * 100)) 
+
+met.May22 <- read_csv("./GBU_May22_2025-02-01_daily.csv") %>%
+  mutate(year = year(date))%>%
+  mutate(jday = yday(date))%>%
+  mutate(mon = month(date))%>%
+    mutate(lab = "May22")%>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean)  %>%
+  filter(K600_daily_Rhat<1.05)
+
+fits.May22 <- read_csv("./GBU_May22_2025-02-01_errors.csv_mod_and_obs_DO.csv") %>%
+  mutate(week = week(solar.time))%>%
+  mutate(jday = yday(solar.time)) %>%
+     mutate(lab = "May22")%>%
+  mutate(
+    DO_pr_sat = c((DO.obs/DO.sat) * 100), 
+    DO_pr_sat_mod = c((DO.mod/DO.sat) * 100))
+
+
+met.May23 <- read_csv("./GBU_May23_2025-02-01_daily.csv") %>%
+  mutate(year = year(date))%>%
+  mutate(jday = yday(date))%>%
+  mutate(mon = month(date))%>%
+     mutate(lab = "May23")%>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean)  %>%
+  filter(K600_daily_Rhat<1.05)
+
+fits.May23 <- read_csv("./GBU_May23_2025-02-01_errors.csv_mod_and_obs_DO.csv") %>%
+  mutate(week = week(solar.time))%>%
+  mutate(jday = yday(solar.time)) %>%
+       mutate(lab = "May23")%>%
+  mutate(
+    DO_pr_sat = c((DO.obs/DO.sat) * 100),
+    DO_pr_sat_mod = c((DO.mod/DO.sat) * 100)) 
+
+
+met.df <- rbind(met.Jun21, 
+                met.May21, 
+                met.May22,
+                met.May23)
+met.df$source <- ("normal_mod")
+fits.df <- rbind(fits.Jun21, fits.May21, fits.May22,
+                 fits.May23)
+
+
+input_dat <- readRDS("./25_GBU_mod_dat.rds") 
+
+measured_K <- read.csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/GBL_k600/ArN_NEON_K_GBL_notpooled_241204.csv")%>%
+  mutate(date= as.Date(date, format=c("%m/%d/%y"))) 
+measured_K$source <- ("measured")
+
+```
+
+### Metabolism segements  with CIs
+Where GPP is in blue and ER is in orange.
+```{r, warning=F, size = 'small', echo=FALSE, fig.width=10, fig.height=12}
+met.df %>% 
+ggplot(aes(x = jday, y = GPP_daily_mean))+
+  geom_abline(slope = 0, intercept = 0, width = 1, alpha = 0.6)+
+  geom_line(col = "cyan4", alpha = 0.8)+
+  geom_ribbon(aes(ymin = GPP_daily_2.5pct, ymax = GPP_daily_97.5pct), 
+              alpha = 0.4, fill = "cyan4")+
+  geom_line(aes(x = jday, y = ER_daily_mean),
+            col = "chocolate3", alpha = 0.8)+
+  geom_ribbon(aes(ymin = ER_daily_2.5pct, ymax = ER_daily_97.5pct), 
+              alpha = 0.4, fill = "chocolate3")+ 
+  geom_point(aes(x = jday, y = NEP_daily_mean),
+             alpha = 0.5, size = 0.2)+
+  facet_wrap(~lab, scales="free", nrow = 4)+
+  theme_bw()
+```
+
+## Checking model convergence
+Make sure the chains converged; all r-hat values were well below 1.05 (the red line)
+for GPP, ER, and K600. 
+The blue lines are the mean for each parameter. 
+
+** Not all all segments had great convergence. 
+
+```{r, , echo=FALSE, warning=F, size = 'small', fig.width=9, fig.height = 2.5}
+k600.rhat <- mean(na.omit(met.df$K600_daily_Rhat))
+GPP.rhat <- mean(na.omit(met.df$GPP_Rhat))
+ER.rhat <- mean(na.omit(met.df$ER_Rhat))
+
+# Create a dataframe for the vertical lines
+rhat_lines <- data.frame(
+  Param = c("K600_daily_Rhat", "GPP_daily_Rhat", "ER_daily_Rhat"),
+  yintercept = c(k600.rhat, GPP.rhat, ER.rhat)
+)
+
+met.df %>%
+  select(date, GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
+  pivot_longer(2:4, values_to = "Rhat", names_to = "Param") %>%
+  ggplot(aes(x = date, y = Rhat), col=lab) +
+  geom_hline(yintercept = 1.05, col = "red", lty = 2) + 
+  geom_point(size = 0.5, alpha = 0.5) +
+  geom_hline(data = rhat_lines, aes(yintercept = yintercept), col = "blue", lty = 2) + 
+  theme_classic() +
+  facet_wrap(~Param, ncol = 3)
+```
+
+
+
+```{r, warning=F, , echo=FALSE, size = 'small', fig.width=9, fig.height = 18}
+fits.day <- fits.df%>% 
+group_by(date, lab) %>%
+ dplyr:: summarize(rmse = sqrt(mean((DO.mod-DO.obs)^2)),
+            sd = sd(DO.obs),
+            min = min(DO.obs, na.rm = T),
+            max = max(DO.obs, na.rm = T),
+            range = range(max-min, na.rm = T),
+            nrmse = rmse/range,
+            minT = min(temp.water, na.rm = T),
+            maxT = max(temp.water, na.rm = T),
+            rangeT= range(maxT-minT, na.rm = T))
+
+summary(fits.day)
+```
+
+## Looking at the K600 and ER relationships
+
+Here is the run configuration:
+
+**bayes_specs_new**  
+
+`bayes_name_new <- mm_name(type = 'bayes', pool_K600 = "normal", err_obs_iid = TRUE, err_proc_iid = TRUE, ode_method = "trapezoid", deficit_src = 'DO_mod', engine = 'stan')`
+
+ Where each "lab" segment was run as individual model with the `K600_lnQ_nodes_meanlog` adjusted to match streamline in cms during that time. 
+
+### K-ER, K-Q, general K600 trends
+There is a strong negative correlation between ER and K600 (-0.96). 
+GPP and K600 are slightly less correlated (0.288).
+
+```{r, warning=F, size = 'small', echo=FALSE, fig.align = "center", fig.width=8, fig.height = 5}
+
+ker <- ggplot(met.df, aes(x = K600_daily_mean, y = ER_daily_mean, col = as.factor(lab)))+
+  geom_point(size = 2)+
+  theme_bw()+ geom_smooth(method="lm", se=F, color="grey50") +
+  scale_color_viridis_d(option = "inferno") +  theme(legend.position = "null")
+
+
+KER_cor <- round(cor(met.df$ER_daily_mean, met.df$K600_daily_mean, use = "complete.obs"),3)
+print(KER_cor)
+
+KGPP_cor <-round(cor(met.df$GPP_daily_mean, met.df$K600_daily_mean, use = "complete.obs"),3)
+print(KGPP_cor)
+
+
+kgpp <- ggplot(met.df, aes(y = K600_daily_mean, x = GPP_daily_mean, col = as.factor(lab)))+
+  geom_point(size = 2)+  geom_smooth(method="lm", se=F, color="grey50", lty="dashed") +
+  theme_bw()+
+  scale_color_viridis_d(option = "inferno") +
+  theme(legend.position = "null")
+
+kyear <- met.df %>%
+ggplot(aes(x = as.factor(year), y = K600_daily_mean, fill = as.factor(lab), col = as.factor(lab)))+
+    geom_hline(yintercept = 10, lty = 2)+
+  geom_boxplot(alpha = 0.8)+
+  theme_bw()+
+  scale_fill_viridis_d(option ="inferno") +  # Use _d for discrete
+  scale_color_viridis_d(option = "inferno") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+mod.env.ag <- input_dat%>%
+  mutate(date= as.Date(solar.time))%>%
+  group_by(date) %>%
+  dplyr:: summarise(
+    DO.obs = mean(DO.obs, na.rm=T),
+    DO.sat = mean(DO.sat, na.rm=T),
+    depth = mean(depth, na.rm=T),
+    temp.water = mean(temp.water, na.rm=T),
+    light = mean(light, na.rm=T),
+    discharge =  mean(discharge, na.rm=T))
+
+
+k.q <- met.df %>%
+  left_join(mod.env.ag, by = "date") %>%
+  ggplot(aes(x = discharge, y = K600_daily_mean, col = lab))+
+  geom_point( size = 2)+ geom_smooth(method="lm", se=F, color="grey50", lty="dashed") +
+  theme_bw()+
+  #scale_x_log10(limits = c(20, 800))+
+   scale_color_viridis_d(option = "inferno") 
+
+
+
+p1 <- plot_grid(ker, kgpp, k.q, rel_widths =c(0.3, 0.3, 0.4), ncol = 3)
+plot_grid(p1, kyear, ncol = 1)
+
+```
+
+### Compared modeled and measured K600
+
+Plots for (1) measured v modeled K600 and flow and (2) logK600 and log(flow+1).
+
+Could be one poor measurement at the highest flow for measured gas exchange.
+But in general the modeled K600 does seem similar to the measured, which is kind of nice to see how robust the `pool_K600 = "normal"` is getting at K600.
+
+```{r, warning=F, size = 'small', echo=FALSE, fig.align = "center", fig.width=9, fig.height = 4}
+
+mean_k_mod <- mean(met.df$K600_daily_mean)
+mean_k_mod
+mean_k_measure <- mean(measured_K$K600)
+mean_k_measure
+
+k.q <- met.df %>%
+  left_join(mod.env.ag, by = "date") %>%
+  full_join(measured_K, by = c("date", "source",
+                                 "K600_daily_mean"= "K600",
+                                "discharge"= "Q_cms")) %>%
+  ggplot(aes(x = discharge, y = K600_daily_mean, col = source, shape=source))+
+  geom_point( size = 2) +
+  theme_bw()+
+  #scale_x_log10(limits = c(20, 800))+
+   scale_color_viridis_d(option = "viridis") 
+
+
+k.q_log <- met.df %>%
+  left_join(mod.env.ag, by = "date") %>%
+  full_join(measured_K, by = c("date", "source",
+                                 "K600_daily_mean"= "K600",
+                                "discharge"= "Q_cms")) %>%
+  ggplot(aes(x = log(discharge+1), y = log(K600_daily_mean), col = source, shape=source))+
+  geom_point( size = 2) +
+  theme_bw()+
+  #scale_x_log10(limits = c(20, 800))+
+   scale_color_viridis_d(option = "viridis") 
+
+
+
+plot_grid(k.q, k.q_log, ncol = 2)
+
+```

@@ -1,0 +1,1049 @@
+---
+title: 'Figures for MS: Spatiotemporal variation in mountain stream metabolism and nitrogen cycling across contrasting flow regimes '
+author: "Kelly Loria"
+date: "2025-02-04"
+output:
+   html_document:
+    theme: united
+    highlight: tango
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=html}
+<style type="text/css">
+body, td {font-size: 13px;}
+code.r{font-size: 9px;}
+pre {font-size: 11px}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = F, message = F)
+knitr::opts_knit$set(root.dir = '/Users/kellyloria/Documents/Publications/')
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+
+```
+
+```{r, echo = F, message = F, include=FALSE}
+### Packages
+#setwd("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/BWL_k600/")
+lapply(c("plyr","dplyr","ggplot2","cowplot",
+         "lubridate","tidyverse", "reshape2", "ggpubr", "ggpattern", "broom.mixed",
+         "glmmTMB",
+         "lme4", "lmerTest", "MuMIn", "PerformanceAnalytics", "car"), require, character.only=T)
+```
+
+## Research Questions:
+
+(1) How does mountain stream productivity vary based on nitrogen availability, light exposure, and antecedent flow conditions?
+
+(2) Is variance in nitrogen uptake (either as ammonium or nitrate) more related to biological (GPP, ER, biomass or chl-a), physical processes (flow and water temperature), or ambient nutrient and organic matter supplies?
+
+```{r, warning=F, size = 'small', echo=FALSE, include=FALSE}
+lapply(c("plyr","dplyr","ggplot2","cowplot",
+         "lubridate","tidyverse", "reshape2", "ggpubr", "ggpattern",
+         "lme4", "lmerTest", "MuMIn", "PerformanceAnalytics", "car"), require, character.only=T)
+site_colors <- c(
+  "BWL" = "#054fb9",
+  "BWU" = "#97b5c2",
+  "GBL" = "#DD6E42",
+  "GBU" = "#d9cb7c"
+)
+
+
+catch_colors <- c(
+  "BW" = "#054fb9",
+  "GB" = "#DD6E42"
+)
+
+# Create a sequence of dates
+date_seq <- seq(from = as.Date("2021-03-20"), to = as.Date("2024-10-10"), by = "day")
+
+# Convert the sequence to a dataframe
+date_df <- data.frame(date = date_seq)
+date_df$site <- "BWL"
+date_df$catch <- "BW"
+date_df1 <- data.frame(date = date_seq)
+date_df1$site <- "GBL"
+date_df1$catch <- "GB"
+date_df2 <- data.frame(date = date_seq)
+date_df2$site <- "GBU"
+date_df2$catch <- "GB"
+date_df3 <- data.frame(date = date_seq)
+date_df3$site <- "BWU"
+date_df3$catch <- "BW"
+
+date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
+
+### fxns:
+## Fxn for water year:
+water_year <- function(data) {
+  # Ensure the `date` column exists
+  if (!"date" %in% names(data)) {
+    stop("The dataframe must contain a column named 'date'.")
+  }
+  
+  # Convert the `date` column to Date format (if not already)
+  data$date <- as.Date(data$date)
+  
+  # Add the water_year column
+  data$water_year <- with(data, {
+    year <- as.numeric(format(date, "%Y"))
+    month <- as.numeric(format(date, "%m"))
+    ifelse(month >= 10, year + 1, year)
+  })
+  
+  return(data)
+}
+## Function to perform ANOVA and post-hoc test within each site
+comparisons <- list(
+  c("2021", "2022"),
+  c("2021", "2023"),
+  c("2022", "2023"),
+  c("2023", "2024")
+)
+```
+
+
+```{r, warning=F, size = 'small', echo=FALSE, include=F}
+### Read in all data
+####
+date_datf <- water_year(date_datf)
+
+covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat.rds") %>%
+  dplyr::select("date", "Site","bulk.density","AFDM_mgg","AFDM_mgcm2", "Chla_ugL_Q", "Pheo_ugL_Q")
+summary(covariat_dat)
+
+covariat_dat <- date_datf %>%
+  left_join(covariat_dat, by=c("date", "site"="Site"))
+
+bg_nuts <- readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
+  #mutate(date = as.Date(date, format="%m/%d/%y")) %>%
+  filter(location=="stream")
+
+WQ_dat <- read.csv("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/Stream_Lake_YSI_WaterQuality.csv")%>%
+  mutate(date = as.Date(date, format="%m/%d/%y")) %>%
+  dplyr::select("site", "date","pH") %>%
+  dplyr:: group_by(site, date) %>%
+  dplyr::summarise(pH=mean(pH, na.rm=T))
+
+covariat_datq <- covariat_dat%>%
+  left_join(bg_nuts[ , c("site", "substrate", "date", "NO3_mgL_dl", "NH4_mgL_dl", "PO4_ugL_dl", "DOC_mgL_dl")], by=c("date", "site"))
+
+covariat_datq <- covariat_datq%>%
+  left_join(WQ_dat,  by=c("date", "site"))
+
+
+## bring in SPC data 
+### missing 2024 BW SPC
+SPC_BWL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWL_SPCv2.rds") %>%
+  filter(datetime>as.POSIXct("2021-04-29 24:00:00"))
+SPC_BWL$site <- "BWL"
+SPC_BWU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWU_SPCv2.rds")
+SPC_BWU$site <- "BWU"
+SPC_GBL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBL_SPCv2.rds")
+SPC_GBL$site <- "GBL"
+SPC_GBU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBU_SPCv2.rds")
+SPC_GBU$site <- "GBU"
+
+SPC_dat <- rbind(SPC_BWL, SPC_BWU, SPC_GBL, SPC_GBU)
+SPC_dat <- SPC_dat %>%
+  mutate(date =as.Date(datetime)) 
+
+SPC_dat_day <- SPC_dat %>%
+  dplyr::group_by(site, date) %>%
+  dplyr::summarise(
+    wt= mean(wtr, na.rm=T),
+    wt_sd= sd(wtr, na.rm=T),
+    SPC_m=mean(SPC, na.rm=T),
+    SPC_sd=sd(SPC, na.rm=T))
+
+hist(SPC_dat_day$wt_sd)
+hist(SPC_dat_day$SPC_sd)
+
+SPC_datD <- SPC_dat_day %>%
+  filter(wt_sd<4.1 & SPC_sd <35)
+  
+hist(SPC_datD$wt_sd)
+hist(SPC_datD$SPC_sd)
+  
+covariat_datq <- covariat_datq%>%
+  left_join(SPC_datD, by=c("date", "site"))
+
+### 
+## Bring in WQ data : 
+
+
+## BWL  
+BWL_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWL_DO_flag_sat_light_v2.rds") %>%
+  filter(maintenance_flag<1 & fouling_flag<1 & solar.time > as.POSIXct("2021-04-22 00:00:00") & solar.time < as.POSIXct("2024-08-01 00:00:00") & 
+           do.obs>3.85 & wtr>0.01) %>%
+  mutate(site="BWL")
+summary(BWL_dat) 
+
+## BWU 
+BWU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWU_DO_flag_sat_light_v2.rds") %>%
+  filter(maintenance_flag<1 & fouling_flag<1 & solar.time > as.POSIXct("2021-06-29 00:00:00") & solar.time < as.POSIXct("2024-08-01 00:00:00") & 
+           do.obs>3.85 & wtr>0.01)  %>%
+  mutate(site="BWU")
+summary(BWU_dat)
+
+## GBL 
+GBL_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBL_DO_flag_sat_light_v2.rds") %>%
+  filter(maintenance_flag<1 & fouling_flag<1 & solar.time > as.POSIXct("2021-03-12 00:00:00") & solar.time < as.POSIXct("2024-08-01 00:00:00") & 
+           do.obs>3.85 & wtr>0.01)  %>%
+  mutate(site="GBL")
+summary(GBL_dat)
+
+## GBU 
+GBU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBU_DO_flag_sat_light_v2.rds") %>%
+  filter(fouling_flag<1 & solar.time > as.POSIXct("2021-03-12 00:00:00") & solar.time < as.POSIXct("2024-08-01 00:00:00") & 
+           do.obs>3.85 & wtr>0.01)  %>%
+  mutate(site="GBU")
+summary(GBU_dat)
+
+
+miniDOT_dat <- rbind(BWL_dat, BWU_dat, GBL_dat, GBU_dat)
+
+miniDOT_dat_day <- miniDOT_dat%>%
+  mutate(date =as.Date(solar.time))%>%
+  dplyr::group_by(site, date) %>%
+  dplyr::summarise(
+    do.obs_m=mean(do.obs, na.rm=T),
+    do.obs_sd=sd(do.obs, na.rm=T),
+    wtr_m=mean(wtr, na.rm=T),
+    wtr_sd=sd(wtr, na.rm=T),
+    Q_m= mean(dischargeCMS, na.rm=T),
+    Q_sd= sd(dischargeCMS, na.rm=T),
+    v_m=mean(v, na.rm=T),
+    v_sd=sd(v, na.rm=T),
+    w_m=mean(w, na.rm=T),
+    w_sd=sd(w, na.rm=T),
+    depth_m=mean(depth, na.rm=T),
+    depth_sd=sd(depth, na.rm=T))
+
+### N-uptake metrics
+
+n_up <- read.csv("/Users/kellyloria/Documents/UNR/Ncycle/BTC_N_Table_2025_figure.csv")%>%
+  mutate(date = as.Date(date, format="%m/%d/%y")) 
+
+covariat_datq <- covariat_datq%>%
+  left_join(n_up, by=c("date", "site"))
+
+covariat_datq <- covariat_datq%>%
+  left_join(miniDOT_dat_day, by=c("date", "site"))
+
+##================================
+## Load metabolism model data
+##================================
+BWL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWL_TVL_flagged_flow_excluded_2025-01-20_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>% 
+  mutate(site="BWL",
+         catch="BW")
+
+summary(BWL_met_binned)
+
+GBL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBL_Full_2025-02-02_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
+  mutate(site="GBL",
+         catch="GB")
+
+
+BWU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWU_Full_2025-02-04_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
+  mutate(site="BWU",
+         catch="BW")
+
+GBU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBU_Full_2025-02-03_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date,GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
+  mutate(site="GBU",
+         catch="GB")
+
+metab_dat <- rbind(BWL_met_binned, BWU_met_binned, GBL_met_binned, GBU_met_binned)
+
+covariat_datq <- covariat_datq%>%
+  left_join(metab_dat, by=c("date", "site", "catch"))
+```
+
+## Question 1:
+
+(1) How does mountain stream productivity vary based on nitrogen availability, light exposure, and antecedent flow conditions?
+
+##### Figures 2 & 3.
+
+### Figure 2:  Metabolism Time sieries 
+
+- Need to describe the magnitude of GPP and ER across all sites
+
+- Need to describe the maginitude of change in GPP and ER across each site 2021-2024.
+
+
+Where GPP is in green, ER is in purple, NEP is in black 
+dataframe: `metab_dat`
+
+```{r, warning=F, size = 'small', echo=F, fig.width=7, fig.height=8}
+metab_TS_plot<- metab_dat %>% 
+  ggplot(aes(x = date)) +
+  geom_abline(slope = 0, intercept = 0, width = 1, alpha = 0.6) +
+  # GPP
+  geom_errorbar(aes(ymin = GPP_2.5pct, ymax = GPP_97.5pct), width = 0.2, color = "#1f7335", alpha=0.2) +
+  geom_point(aes(y = GPP_mean), col = "#1f7335", alpha = 0.8, size = 0.5) +
+  # ER
+  geom_errorbar(aes(ymin = ER_97.5pct, ymax = ER_2.5pct), width = 0.2, color = "#6c3a8a", alpha=0.2) +
+  geom_point(aes(y = ER_mean), col = "#6c3a8a", alpha = 0.8, size = 0.5) +
+  # NEP Points
+  geom_point(aes(y = NEP_daily_mean), alpha = 0.25, size = 0.15, shape=1) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_date(date_breaks = "12 week", date_labels = "%b-%y") +
+  scale_fill_manual(values = c("GPP" = "#1f7335", "ER" = "#6c3a8a")) +
+  ylab(expression(Metabolism~(g~O[2]~m^-2~d^-1))) + xlab(NULL) +
+  facet_wrap(~site, nrow = 4) 
+
+metab_TS_plot
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/metab_TS_plot_2025.png", plot = metab_TS_plot, width = 5.25, height = 6, units = "in")
+```
+
+
+
+
+### General drivers of productivity
+
+Each productivity response is individually modeled within stream using `glm`
+
+dataframe = `covariat_datq`
+
+```{r, warning=F, size = 'small', echo=F, fig.width=10, fig.height=12}
+# Separate out BW 
+covariat_datq_BW <- covariat_datq%>%
+  filter(site=="BWL" | site=="BWU")
+
+# Separate out GB 
+covariat_datq_GB <- covariat_datq%>%
+  filter(site=="GBL" | site=="GBU")
+```
+
+#### A. Biomass models
+
+##### BW:
+
+What's the response distribution? 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=4, fig.height=4}
+OM_dist <- hist(covariat_datq_BW$AFDM_mgg)
+log_OM_dist <- hist(log(covariat_datq_BW$AFDM_mgg+1))
+```
+Organic matter more normal when log + 1 transformed. 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=4, fig.height=4}
+biomass_mod_bw <- glm(log(AFDM_mgg+1)~ 
+                         scale(NO3_mgL_dl* 1000) + 
+                         scale(NH4_mgL_dl* 1000) + 
+                         scale(PO4_ugL_dl)+ 
+                         scale(DOC_mgL_dl)+
+                         scale(wtr_m) + 
+                         scale(Q_m), data=covariat_datq_BW)
+
+summary(biomass_mod_bw)
+vif(biomass_mod_bw)
+hist(residuals(biomass_mod_bw))
+r.squaredGLMM(biomass_mod_bw)
+
+# Extract fixed effects and confidence intervals
+fixed_effects <- broom.mixed::tidy(biomass_mod_bw, effects = "fixed", conf.int = TRUE)
+# Filter to exclude intercept and arrange predictors
+fixed_effects1 <- fixed_effects[fixed_effects$term != "(Intercept)", ]
+fixed_effects1 <- fixed_effects1[order(fixed_effects1$estimate), ]  # Order by estimate
+fixed_effects1$Catchment <- "BW"
+```
+
+##### GB:
+
+What's the response distribution? 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+OM_dist <- hist(covariat_datq_GB$AFDM_mgg)
+log_OM_dist <- hist(log(covariat_datq_GB$AFDM_mgg+1))
+```
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+biomass_mod_gb <- glm(log(AFDM_mgg+1)~ 
+                         scale(NO3_mgL_dl* 1000) + 
+                         scale(NH4_mgL_dl* 1000) + 
+                         scale(PO4_ugL_dl)+ 
+                         scale(DOC_mgL_dl)+
+                         scale(wtr_m) + 
+                         scale(Q_m), data=covariat_datq_GB)
+
+summary(biomass_mod_gb)
+vif(biomass_mod_gb)
+hist(residuals(biomass_mod_gb))
+r.squaredGLMM(biomass_mod_gb)
+
+
+fixed_effects_gb <- broom.mixed::tidy(biomass_mod_gb, effects = "fixed", conf.int = TRUE)
+
+# Filter to exclude intercept and arrange predictors
+fixed_effects_gb1 <- fixed_effects_gb[fixed_effects_gb$term != "(Intercept)", ]
+fixed_effects_gb1 <- fixed_effects_gb1[order(fixed_effects_gb1$estimate), ]  # Order by estimate
+fixed_effects_gb1$Catchment <- "GB"
+```
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE,fig.width=6, fig.height=4}
+
+fxd_eff <- rbind(fixed_effects_gb1, fixed_effects1)
+
+fxd_eff1 <- fxd_eff %>%
+  mutate(Significance = case_when(
+    p.value <= 0.055 ~ "sig",
+    p.value > 0.055 & p.value <= 0.09  ~ "marg.",
+    p.value > 0.09  ~ "not sig."))
+
+
+term_labels <- c(
+  "scale(NO3_mgL_dl * 1000)" = expression(NO[3]~(µg~L^-1)),
+  "scale(PO4_ugL_dl)" = expression(PO[4]~(µg~L^-1)),
+  "scale(DOC_mgL_dl)" = expression(DOC~(mg~L^-1)),
+  "scale(NH4_mgL_dl * 1000)" = expression(NH[4]~(µ~L^-1)),
+  "scale(wtr_m)" = expression(Temp~(degree~C)),
+  "scale(Q_m)" = expression(Q~(m^3~s^-1))
+)
+
+# Add an offset column based on Catchment
+fxd_eff1 <- fxd_eff1 %>%
+  mutate(y_position = as.numeric(reorder(term, estimate)) + ifelse(Catchment == "BW", 0.2, 0))
+
+Biomass_coeff_plot <-ggplot(fxd_eff1, aes(x = estimate, y = reorder(term, estimate), color = Catchment, shape = Significance)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  theme_classic() +
+  scale_shape_manual(values = c(1, 4, 19)) +
+  scale_color_manual(values = catch_colors) +
+  geom_vline(xintercept = 0) +
+  labs(
+    x = "Scaled effect size",
+    y = "Predictors",
+    title = "Epilithic biomass"
+  ) +
+  scale_y_discrete(labels = term_labels) +
+  theme(
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12)
+  )
+
+
+Biomass_coeff_plot
+```
+
+#### B. Chlorophyll-a models 
+
+##### BW:
+
+What's the response distribution? 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+chla_dist <- hist(covariat_datq_BW$Chla_ugL_Q)
+chla_OM_dist <- hist(log(covariat_datq_BW$Chla_ugL_Q+1))
+```
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+
+chla_mod_bw <- glm(log(Chla_ugL_Q+1)~ 
+                         scale(NO3_mgL_dl* 1000) + 
+                         scale(NH4_mgL_dl* 1000) + 
+                         scale(PO4_ugL_dl)+ 
+                         scale(DOC_mgL_dl)+
+                         scale(wtr_m) + 
+                         scale(Q_m), data=covariat_datq_BW)
+
+summary(chla_mod_bw)
+vif(chla_mod_bw)
+hist(residuals(chla_mod_bw))
+r.squaredGLMM(chla_mod_bw)
+
+
+
+# Extract fixed effects and confidence intervals
+fixed_effects_chl <- broom.mixed::tidy(chla_mod_bw, effects = "fixed", conf.int = TRUE)
+# Filter to exclude intercept and arrange predictors
+fixed_effects_chl1 <- fixed_effects_chl[fixed_effects_chl$term != "(Intercept)", ]
+fixed_effects_chl1 <- fixed_effects_chl1[order(fixed_effects_chl1$estimate), ]  # Order by estimate
+fixed_effects_chl1$Catchment <- "BW"
+
+```
+
+
+##### GB:
+
+What's the response distribution? 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+chla_dist <- hist(covariat_datq_GB$Chla_ugL_Q)
+chla_OM_dist <- hist(log(covariat_datq_GB$Chla_ugL_Q+1))
+```
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+
+chla_mod_gb <- glm(log(Chla_ugL_Q+1)~ 
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+ 
+                      scale(DOC_mgL_dl)+
+                      scale(wtr_m) + 
+                      scale(Q_m), data=covariat_datq_GB)
+
+summary(chla_mod_gb)
+vif(chla_mod_gb)
+hist(residuals(chla_mod_gb))
+r.squaredGLMM(chla_mod_gb)
+
+fixed_effects_chlg <- broom.mixed::tidy(chla_mod_gb, effects = "fixed", conf.int = TRUE)
+# Filter to exclude intercept and arrange predictors
+fixed_effects_chlg1 <- fixed_effects_chlg[fixed_effects_chlg$term != "(Intercept)", ]
+fixed_effects_chlg1 <- fixed_effects_chlg1[order(fixed_effects_chlg1$estimate), ]  # Order by estimate
+fixed_effects_chlg1$Catchment <- "GB"
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE,fig.width=6, fig.height=4}
+fxd_eff_chla <- rbind(fixed_effects_chlg1, fixed_effects_chl1)
+
+fxd_eff_chla1 <- fxd_eff_chla %>%
+  mutate(Significance = case_when(
+    p.value <= 0.055 ~ "sig.",
+    p.value > 0.055 & p.value <= 0.09  ~ "marg.",
+    p.value > 0.09  ~ "not sig."))
+
+
+term_labels_chla <- c(
+  "scale(NO3_mgL_dl * 1000)" = expression(NO[3]~(µg~L^-1)),
+  "scale(PO4_ugL_dl)" = expression(PO[4]~(µg~L^-1)),
+  "scale(DOC_mgL_dl)" = expression(DOC~(mg~L^-1)),
+  "scale(NH4_mgL_dl * 1000)" = expression(NH[4]~(µ~L^-1)),
+  "scale(wtr_m)" = expression(Temp~(degree~C)),
+  "scale(Q_m)" = expression(Q~(m^3~s^-1))
+)
+
+# Add an offset column based on Catchment
+fxd_eff_chla1 <- fxd_eff_chla1 %>%
+  mutate(y_position = as.numeric(reorder(term, estimate)) + ifelse(Catchment == "BW", 0.2, 0))
+
+
+chla_coeff_plot <-ggplot(fxd_eff_chla1, aes(x = estimate, y = reorder(term, estimate), color = Catchment, shape = Significance)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  theme_classic() +
+  scale_shape_manual(values = c(1,4, 19)) +
+  scale_color_manual(values = catch_colors) +
+  geom_vline(xintercept = 0) +
+  labs(
+    x = "Scaled effect size",
+    y = "Predictors",
+    title = "Epilithic chl-a"
+  ) +
+  scale_y_discrete(labels = term_labels_chla) +
+  theme(
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12)
+  )
+chla_coeff_plot
+
+#########
+```
+
+#### C. GPP models 
+
+##### GB:
+
+What's the response distribution? 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+covariat_datq_BW_na <- covariat_datq_BW %>%
+  drop_na(GPP_mean)
+
+GPP_dist <- hist(covariat_datq_BW_na$GPP_mean)
+GPP_OM_dist <- hist(log(covariat_datq_BW_na$GPP_mean+1))
+```
+Possibility still too skewed to use a normal distribution in lmer. 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+gpp_mod_bw <- glm(log(GPP_mean+1)~ 
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+ 
+                      scale(DOC_mgL_dl)+
+                      scale(wtr_m) + 
+                      scale(Q_m), data=covariat_datq_BW_na)
+
+summary(gpp_mod_bw)
+vif(gpp_mod_bw)
+hist(residuals(gpp_mod_bw))
+r.squaredGLMM(gpp_mod_bw)
+```
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6,include=FALSE, fig.height=4}
+
+##### Using model with specifc log-normal distribution
+#`glmmTMB()
+gpp_LN_mod_bw <- glmmTMB(GPP_mean ~
+                        scale(NO3_mgL_dl * 1000) +
+                        scale(NH4_mgL_dl * 1000) +
+                        scale(PO4_ugL_dl) +
+                        scale(DOC_mgL_dl) +
+                        scale(wtr_m) +
+                        scale(Q_m), 
+                      family = gaussian(link = "log"),
+                      data = covariat_datq_BW_na)
+
+
+summary(gpp_LN_mod_bw)
+hist(residuals(gpp_LN_mod_bw))
+r.squaredGLMM(gpp_LN_mod_bw)
+```
+
+
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+
+# Extract fixed effects and confidence intervals
+fixed_effects_nep <- broom.mixed::tidy(gpp_mod_bw, effects = "fixed", conf.int = TRUE)
+# Filter to exclude intercept and arrange predictors
+fixed_effects_nep <- fixed_effects_nep[fixed_effects_nep$term != "(Intercept)", ]
+fixed_effects_nep <- fixed_effects_nep[order(fixed_effects_nep$estimate), ]  # Order by estimate
+fixed_effects_nep$Catchment <- "BW"
+```
+
+
+
+##### GB:
+
+What's the response distribution? 
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+covariat_datq_GB_na <- covariat_datq_GB %>%
+    drop_na(GPP_mean)
+
+  #drop_na(GPP_mean)
+
+GPP_dist <- hist(covariat_datq_GB_na$GPP_mean)
+GPP_OM_dist <- hist(log(covariat_datq_GB_na$GPP_mean+1))
+```
+Highly skewed even when log transformed.
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+gpp_mod_gb <- lm(log(GPP_mean+1) ~ 
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+ 
+                      scale(DOC_mgL_dl)+
+                      scale(wtr_m) + 
+                      scale(Q_m), data=covariat_datq_GB_na)
+
+summary(gpp_mod_gb)
+vif(gpp_mod_gb)
+hist(residuals(gpp_mod_gb))
+r.squaredGLMM(gpp_mod_gb)
+
+```
+
+
+```{r, warning=F, size = 'small', echo=T, include=FALSE, fig.width=6, fig.height=4}
+##### Using model with specifc log-normal distribution
+#`glmmTMB()`
+gpp_LN_mod_gb <- glmmTMB(GPP_mean ~
+                        scale(NO3_mgL_dl * 1000) +
+                        scale(NH4_mgL_dl * 1000) +
+                        scale(PO4_ugL_dl) +
+                        scale(DOC_mgL_dl) +
+                        scale(wtr_m) +
+                        scale(Q_m), 
+                      family = gaussian(link = "log"),
+                      data = covariat_datq_GB)
+
+
+summary(gpp_LN_mod_gb)
+hist(residuals(gpp_LN_mod_gb))
+r.squaredGLMM(gpp_LN_mod_gb)
+```
+
+
+```{r, warning=F, size = 'small', echo=T, fig.width=6, fig.height=4}
+
+fixed_effects_nep1 <- broom.mixed::tidy(gpp_mod_gb, effects = "fixed", conf.int = TRUE)
+# Filter to exclude intercept and arrange predictors
+fixed_effects_nep1 <- fixed_effects_nep1[fixed_effects_nep1$term != "(Intercept)", ]
+fixed_effects_nep1 <- fixed_effects_nep1[order(fixed_effects_nep1$estimate), ]  # Order by estimate
+fixed_effects_nep1$Catchment <- "GB"
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE,fig.width=6, fig.height=4}
+fxd_eff_nep <- rbind(fixed_effects_nep, fixed_effects_nep1)
+
+fxd_eff_nep1 <- fxd_eff_nep %>%
+  mutate(Significance = case_when(
+    p.value <= 0.055 ~ "sig.",
+    p.value > 0.055 & p.value <= 0.09  ~ "marg.",
+    p.value > 0.09  ~ "not sig."))
+
+
+term_labels_nep <- c(
+  "scale(NO3_mgL_dl * 1000)" = expression(NO[3]~(µg~L^-1)),
+  "scale(PO4_ugL_dl)" = expression(PO[4]~(µg~L^-1)),
+  "scale(DOC_mgL_dl)" = expression(DOC~(mg~L^-1)),
+  "scale(NH4_mgL_dl * 1000)" = expression(NH[4]~(µ~L^-1)),
+  "scale(wtr_m)" = expression(Temp~(degree~C)),
+  "scale(Q_m)" = expression(Q~(m^3~s^-1))
+)
+
+# Add an offset column based on Catchment
+fxd_eff_nep1 <- fxd_eff_nep1 %>%
+  mutate(y_position = as.numeric(reorder(term, estimate)) + ifelse(Catchment == "BW", 0.2, 0))
+
+
+nep_coeff_plot <-ggplot(fxd_eff_nep1, aes(x = estimate, y = reorder(term, estimate), color = Catchment, shape = Significance)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  theme_classic() +
+  scale_shape_manual(values = c(4, 19)) +
+  scale_color_manual(values = catch_colors) +
+  geom_vline(xintercept = 0) +
+  labs(
+    x = "Scaled effect size",
+    y = "Predictors",
+    title = "GPP"
+  ) +
+  scale_y_discrete(labels = term_labels_nep) +
+  theme(
+    axis.text.y = element_text(size = 10),
+    axis.title.x = element_text(size = 12)
+  )
+```
+
+
+
+### Figures 3: General drivers for biomass, chl-a and GPP
+
+Mainly addresses how productivity is associated with nutrients and water qualilty:
+
+```{r, warning=F, size = 'small', echo=F, fig.width=4, fig.height=10}
+
+### big grid 
+coeff_grid <- ggarrange(
+  Biomass_coeff_plot,
+  chla_coeff_plot,
+  nep_coeff_plot,
+  ncol = 1, nrow = 3,
+  common.legend = TRUE, 
+  legend = "bottom")
+
+
+coeff_grid <- ggarrange(
+  Biomass_coeff_plot + theme(legend.position = "bottom") + 
+    guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
+  chla_coeff_plot + theme(legend.position = "bottom") + 
+    guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
+  nep_coeff_plot + theme(legend.position = "bottom") + 
+    guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
+  labels=c("a", "b", "c"),
+  
+  ncol = 1, nrow = 3,
+  common.legend = TRUE,
+  legend = "bottom"
+)
+
+coeff_grid
+```
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/supp\ figures/Fig4_coeff_ecol_CH1_grid.png", plot = coeff_grid, width = 3.5, height = 9, units = "in")
+```
+
+In general GPP may be more a function of physical conditions but is associated with NH4.
+
+## Question 2:
+
+(2) Is variance in nitrogen uptake (either as ammonium or nitrate) more related to biological (GPP, ER, biomass or chl-a), physical processes (flow and water temperature), or ambient nutrient and organic matter supplies?
+
+### Figure 4: N uptake variation by N species and reach location 
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE,fig.width=6, fig.height=4}
+n_up_sum <-n_up%>%
+  filter(success=="yes") %>%
+  dplyr::group_by(method, site) %>%
+  dplyr::summarise(
+    Uadd_ug_L = mean(Uadd_ug_L_min, na.rm=T),
+    Uadd_ug_L_MIN = min(Uadd_ug_L_min, na.rm=T),
+    Uadd_ug_L_MAX = max(Uadd_ug_L_min, na.rm=T),
+    sw = mean(sw_m, na.rm=T),
+    sw_MIN = min(sw_m, na.rm=T),
+    sw_MAX = max(sw_m, na.rm=T),
+    Vf_m = mean(Vf_m_min, na.rm=T),
+    Vf_m_MIN = min(Vf_m_min, na.rm=T),
+    Vf_m_MAX = max(Vf_m_min, na.rm=T))
+
+nup_sum_plot <-ggplot(n_up_sum, aes(x = site, y = Uadd_ug_L, color = site, shape = method)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  geom_errorbar(aes(ymin = Uadd_ug_L_MIN, ymax = Uadd_ug_L_MAX),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
+  theme_classic() + ylab(expression(U[t]~(µg~L^-1~min^-1)))+
+  xlab(NULL) +
+  #scale_shape_manual(values = c(4, 19)) +
+  scale_color_manual(values = site_colors) 
+
+nvf_sum_plot <-ggplot(n_up_sum, aes(x = site, y = Vf_m, color = site, shape = method)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  geom_errorbar(aes(ymin = Vf_m_MIN, ymax = Vf_m_MAX),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
+  theme_classic()  + ylab(expression(V[f]~(µg~m^-1~min^-1)))+
+  xlab(NULL) +
+  #scale_shape_manual(values = c(4, 19)) +
+  scale_color_manual(values = site_colors) 
+
+nsw_sum_plot <-ggplot(n_up_sum, aes(x = site, y = sw, color = site, shape = method)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  geom_errorbar(aes(ymin = sw_MIN, ymax = sw_MAX),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
+  theme_classic()  + ylab(expression(S[w]~(m)))+
+  xlab(NULL) +
+  #scale_shape_manual(values = c(4, 19)) +
+  scale_color_manual(values = site_colors) 
+
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=3, fig.height=5}
+# Combine plots with a shared legend
+Nup_grid <- ggarrange(
+  nup_sum_plot,
+  nvf_sum_plot,
+  nsw_sum_plot,
+  ncol = 1, nrow = 3,
+  common.legend = TRUE,
+  legend = "right"
+)
+
+Nup_grid <- Nup_grid + 
+  theme(legend.box = "vertical",        # Arrange legends vertically
+        legend.text = element_text(size = 10),  # Adjust legend text size if needed
+        legend.title = element_text(size = 12)) +
+  guides(
+    color = guide_legend(nrow = 1),    # Put colors on one row
+    shape = guide_legend(nrow = 1)    # Put shapes on another row
+  )
+
+Nup_grid
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/supp\ figures/Nuptake_CH1_grid.png", plot = Nup_grid, width = 3.25, height = 7, units = "in")
+```
+
+### Figure  5/ (maybe 4b?): N uptake correlation between (GPP, ER, biomass or chl-a) or Q and temp
+
+Color by site, Shape by N uptake method
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=6, fig.height=4}
+hist(covariat_datq$Uadd_ug_L_min)
+hist(log(covariat_datq$Uadd_ug_L_min+1))
+```
+
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=6, fig.height=4}
+U_mod_bio <- lmer(log(Uadd_ug_L_min+1) ~ 
+                      scale(AFDM_mgcm2) + (1|site), data=covariat_datq)
+summary(U_mod_bio)
+hist(residuals(U_mod_bio))
+
+U_mod_bio_r2_vals <- r.squaredGLMM(U_mod_bio)
+U_mod_bio_conditional_r2 <- round(U_mod_bio_r2_vals[2], 2)
+
+```
+
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=6, fig.height=4}
+U_mod_chla <- lmer(log(Uadd_ug_L_min+1) ~ 
+                      scale(Chla_ugL_Q) + (1|site), data=covariat_datq)
+
+summary(U_mod_chla)
+hist(residuals(U_mod_chla))
+r.squaredGLMM(U_mod_chla)
+
+U_mod_chla_r2_vals <- r.squaredGLMM(U_mod_chla)
+U_mod_chla_conditional_r2 <- round(U_mod_chla_r2_vals[2], 2)
+```
+
+
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=6, fig.height=4}
+U_mod_GPP <- lmer(log(Uadd_ug_L_min+1) ~ 
+                      scale(GPP_mean) + (1|site), data=covariat_datq)
+
+summary(U_mod_GPP)
+hist(residuals(U_mod_GPP))
+
+U_mod_GPP_r2_vals <- r.squaredGLMM(U_mod_GPP)
+U_mod_GPP_conditional_r2 <- round(U_mod_GPP_r2_vals[2], 2)
+```
+
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=6, fig.height=4}
+U_mod_ER <- lmer(log(Uadd_ug_L_min+1) ~ 
+                      scale((ER_mean*-1)) + (1|site), data=covariat_datq)
+
+summary(U_mod_ER)
+hist(residuals(U_mod_ER))
+
+U_mod_ER_r2_vals <- r.squaredGLMM(U_mod_ER)
+U_mod_ER_conditional_r2 <- round(U_mod_ER_r2_vals[2], 2)
+```
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=6, fig.height=4}
+U_mod_Q <- lmer(log(Uadd_ug_L_min+1) ~ 
+                      scale((Q_m)) + (1|site), data=covariat_datq)
+
+summary(U_mod_Q)
+hist(residuals(U_mod_Q))
+
+U_mod_Q_r2_vals <- r.squaredGLMM(U_mod_Q)
+U_mod_Q_conditional_r2 <- round(U_mod_Q_r2_vals[2], 2)
+```
+
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=6, fig.height=4}
+U_mod_temp <- lmer(log(Uadd_ug_L_min+1) ~ 
+                      scale(wtr_m) + (1|site), data=covariat_datq)
+
+summary(U_mod_temp)
+hist(residuals(U_mod_temp))
+r.squaredGLMM(U_mod_temp)
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+U_OM_plt<- ggplot(covariat_datq, aes(x=AFDM_mgg, y = Uadd_ug_L_min, color =site, shape=method)) + 
+  geom_point(size=2, alpha=0.75) + theme_classic() + 
+   ylab(expression(U[t]~(µg~L^-1~min^-1)))+
+  xlab(expression(OM~(mg~g^-1)))+
+  scale_color_manual(values = site_colors)
+
+U_biomass_plt<-ggplot(covariat_datq, aes(x=AFDM_mgcm2, y = log(Uadd_ug_L_min+1), color =site, shape=method)) + 
+  geom_point(size=2, alpha=0.75) + theme_classic() +
+  #geom_smooth(method = "lm", aes(color = site), se=F) +
+  geom_smooth(method = "lm", color="grey50", se=F) +
+   ylab(expression(log(U[t]+1)~(µg~L^-1~min^-1)))+
+    xlab(expression(Biomass~(mg~cm^2)))+
+  scale_color_manual(values = site_colors)
+
+U_Chla_plt<-ggplot(covariat_datq, aes(x=Chla_ugL_Q,  y = log(Uadd_ug_L_min+1), color =site, shape=method)) + 
+  geom_point(size=2, alpha=0.75) + theme_classic() + 
+    geom_smooth(method = "lm", color="grey50", se=F) +
+   ylab(expression(log(U[t]+1)~(µg~L^-1~min^-1)))+
+      xlab(expression(Chla~(µg~L^-1)))+
+  scale_color_manual(values = site_colors)
+
+U_GPP_plt<-ggplot(covariat_datq, aes(x=GPP_mean,  y = log(Uadd_ug_L_min+1), color =site, shape=method)) + 
+  geom_point(size=2, alpha=0.75) + theme_classic() + 
+   ylab(expression(log(U[t]+1)~(µg~L^-1~min^-1)))+
+    xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
+  scale_color_manual(values = site_colors)
+
+U_ER_plt<-ggplot(covariat_datq, aes(x=(ER_mean*-1),  y = log(Uadd_ug_L_min+1), color =site, shape=method)) + 
+  geom_point(size=2, alpha=0.75) + theme_classic() + 
+    geom_smooth(method = "lm", color="grey50", se=F) +
+   ylab(expression(log(U[t]+1)~(µg~L^-1~min^-1)))+
+          xlab(expression(abs(ER)~(g~O[2]~m^-2~d^-1))) +
+  scale_color_manual(values = site_colors)
+
+U_temp_plt<-ggplot(covariat_datq, aes(x=wtr_m,  y = log(Uadd_ug_L_min+1), color =site, shape=method)) + 
+  geom_point(size=2, alpha=0.75) + theme_classic() + 
+   ylab(expression(log(U[t]+1)~(µg~L^-1~min^-1)))+
+        xlab(expression(Temp~(degree*C))) +
+  scale_color_manual(values = site_colors)
+
+U_Q_plt<-ggplot(covariat_datq, aes(x=log(Q_m+1), y = log(Uadd_ug_L_min+1), color =site, shape=method)) + 
+  geom_point(size=2, alpha=0.75) + theme_classic() + 
+    geom_smooth(method = "lm", color="grey50", se=F) +
+   ylab(expression(log(U[t]+1)~(µg~L^-1~min^-1)))+
+     xlab(expression(log(Q+1)~(m^2~s^-1))) +
+  scale_color_manual(values = site_colors)
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=6, fig.height=5}
+
+Nup_grid2 <- ggarrange(
+  U_biomass_plt,
+  U_Chla_plt,
+  U_GPP_plt,
+  U_ER_plt,
+  U_temp_plt,
+  U_Q_plt,
+  ncol = 2, nrow = 3,
+  common.legend = TRUE,
+  legend = "right"
+)
+
+Nup_grid2
+```
+names(covariat_datq)
+
