@@ -472,6 +472,7 @@ plot_grid(k.q, k.q_log, ncol = 2)
 ```
 
 
+
 ### Full run with binned K600 informed by both measured and modeled priors
 
 
@@ -630,6 +631,22 @@ plot_grid(p1, kyear, ncol = 1)
 The vertical dashed is the overall mean modeled K600 in the box plot. 
 
 
+
+##### GPP and ER
+```{r, warning=F, size = 'small', echo=F, fig.align = "center", fig.width=8, fig.height = 5}
+GPP_E_cor <-round(cor(met.clean$GPP_daily_mean, met.clean$ER_daily_mean, use = "complete.obs"),3)
+print(GPP_E_cor)
+
+
+kgpp <- ggplot(met.clean, aes(y = (ER_daily_mean*-1), x = GPP_daily_mean, col = as.factor(lab)))+
+  geom_point(size = 2)+  geom_smooth(method="lm", se=F, color="grey50",lty="dashed") +
+  theme_bw()+
+  scale_color_viridis_d(option = "inferno") +
+  theme(legend.position = "null")
+kgpp
+
+```
+
 ## Final thoughts.
 The direction of the K600 ~ flow relationship looks more logical, where K600 increases with flow.
 ER and K600 are still very negatively correlated (-0.759) but it might just mean that ER is not an identifiable parameter in this reach. 
@@ -731,3 +748,11 @@ excluded_summary %>%
   row_spec(0:2, bold = TRUE, font_size = 16) %>% 
   row_spec(2, hline_after = TRUE)  
 ```
+
+
+#### Session info
+
+```{r, warning=F, size = 'small', echo=FALSE, fig.width=5, fig.height=12}
+pander::pander(sessionInfo())
+```
+
