@@ -125,7 +125,7 @@ result <- flow_data %>%
 ```
 
 
-```{r, echo=FALSE, fig.width=9, fig.height=4, fig.align='center', inlcude=T}
+```{r, echo=FALSE, fig.width=8, fig.height=4, fig.align='center', inlcude=T}
 
 # Plotting for each site
 plot <- result %>%
@@ -352,6 +352,9 @@ target_snow_df <- target_snow_dat %>%
   dplyr::select(site_name,site_id,date,snow_water_equivalent,precipitation_cumulative,
          temperature_max,temperature_min,temperature_mean,precipitation,WaterYear,
          site)
+
+summary(target_snow_df)
+
 ```
 
 
@@ -368,8 +371,11 @@ snowflow_dat <- left_join(target_snow_df,
   
   
 
+
+
+
 plot_SWE <- snowflow_dat %>%
-  ggplot(aes(y = accum_SWE/1000, x = date, color = site)) +
+  ggplot(aes(y = accum_SWE*0.001, x = date, color = site)) +
   geom_line(linewidth=1) + theme_classic() +
     scale_color_manual(values=alpha(c(site_colors), 0.75)) +
     ylab(expression(Accumulated~SWE~(m))) + xlab(NULL) 
@@ -384,49 +390,82 @@ plot_flow <- snowflow_dat %>%
 
 plot_flow
 
+
+plot_ppt <- snowflow_dat %>%
+  ggplot(aes(y = precipitation_cumulative, x = date, color = site)) +
+  geom_line(linewidth=1) + theme_classic() +
+    scale_color_manual(values=alpha(c(site_colors), 0.75)) +
+    ylab(expression(Accumulated~precipt~(mm~d^-1))) + xlab(NULL) 
+
+plot_ppt
 ```
 
 
-```{r, warning=F, echo=F,include=T, fig.width=7, fig.height=6}
+```{r, warning=F, echo=F,include=T, fig.width=8, fig.height=10}
 grid <- ggarrange(plot_SWE,
-                       plot_flow, 
+                  plot_flow, 
+                  plot_ppt,
                        ncol = 1, 
-                       nrow = 2, 
+                       nrow = 3, 
                        common.legend = TRUE,
                        legend = "bottom")
 
 grid
 ```
 
+### Estimate values for: 
 
-```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
+- Total accumulated SWE per water year in mm/yr
+
+- Water yield (cms/km yr)
+
+- Max SWE measurement mm
+
+- Max precipitation accumulation (ppt) in mm 
+
+
+```{r, echo=T, error=FALSE, warning=FALSE, include=T, message=FALSE}
 
 snowflow_dat_sum <- snowflow_dat%>%
   filter(WaterYear<2025) %>%
   group_by(site, WaterYear) %>%
   summarise(Total_SWE = max(accum_SWE, na.rm=T),
-            Water_yeild = max(accum_Qm3D, na.rm = T))
+            Water_yield = max(accum_Qm3D, na.rm = T),
+            Max_SWE = max(snow_water_equivalent, na.rm=T),
+            Total_ppt = max(precipitation_cumulative, na.rm=T)
+            )
+
+summary(snowflow_dat_sum)
 
 ### get 20 year water year averages
 snowflow_HA <- snowflow_dat_sum%>%
   filter(WaterYear<2025) %>%
   group_by(site) %>%
   summarise(mean_SWE_acc = mean(Total_SWE, na.rm=T),
-            mean_Water_yeild = mean(Water_yeild, na.rm = T))
+            mean_Water_yield = mean(Water_yield, na.rm = T),
+            mean_SWE = mean(Max_SWE, na.rm = T),
+            mean_ppt_acc = mean(Total_ppt, na.rm = T)
+            )
+
+snowflow_HA
+
+```
 
 
-SWP_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Total_SWE/1000, color = site)) +
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
+
+SWP_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Total_SWE*0.001, color = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=15) +
   geom_line(position = position_dodge(width = 0.1))+
-  geom_hline(yintercept = 98089.47/1000, col = "#054fb9", lty = 2) + 
-  geom_hline(yintercept = 65774.26/1000, col = "#DD6E42", lty = 2) + 
+  geom_hline(yintercept = 98089.47*0.001, col = "#054fb9", lty = 2) + 
+  geom_hline(yintercept = 65774.26*0.001, col = "#DD6E42", lty = 2) + 
   theme_classic() + ylab(expression(Annual~accumulated~SWE~(m~y^-1))) +
   xlab(NULL) + scale_color_manual(values = site_colors) +
   theme(legend.position =  "none") +
       scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
 
 
-WYeild_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Water_yeild, color = site)) +
+WYeild_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Water_yield, color = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=17) +
   geom_line(position = position_dodge(width = 0.1))+
     geom_hline(yintercept = 1052085.5, col = "#054fb9", lty = 2) + 
@@ -435,22 +474,54 @@ WYeild_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Water_yeild,
   xlab(NULL) + scale_color_manual(values = site_colors) +
   theme(legend.position =  "none") +
         scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
+
+
+SWE_m_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Max_SWE*0.001, color = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=15) +
+  geom_line(position = position_dodge(width = 0.1))+
+    geom_hline(yintercept = 974.1571*0.001, col = "#054fb9", lty = 2) + 
+  geom_hline(yintercept = 644.1905*0.001, col = "#DD6E42", lty = 2) + 
+  theme_classic() + ylab(expression(Annual~max~SWE~(m~y^-1))) +
+  xlab(NULL) + scale_color_manual(values = site_colors) +
+  theme(legend.position =  "none") +
+        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
+
+
+
+ppt_accum_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Total_ppt*0.001, color = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=15) +
+  geom_line(position = position_dodge(width = 0.1))+
+    geom_hline(yintercept = 1718.2429*0.001, col = "#054fb9", lty = 2) + 
+  geom_hline(yintercept = 843.7667*0.001, col = "#DD6E42", lty = 2) + 
+  theme_classic() + ylab(expression(Annual~accumulated~ppt~(m~y^-1))) +
+  xlab(NULL) + scale_color_manual(values = site_colors) +
+  theme(legend.position =  "none") +
+        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
+  
   
   
 ```
+
 ### 20 years of SWE accumulation and water yield  
 
 The dashed lines represent the site 20-year average annual (WY) values for total SWE or water catchment normalized water yield 
 
-```{r, warning=F, echo=F,include=T, fig.width=8, fig.height=6}
+```{r, warning=F, echo=F,include=T, fig.width=8, fig.height=10}
 grid <- ggarrange(SWP_acc_plots,
-                       WYeild_acc_plots, 
+                  SWE_m_plots,
+                  ppt_accum_plots,
+                  WYeild_acc_plots, 
                        ncol = 1, 
-                       nrow = 2, 
+                       nrow = 4, 
                        common.legend = TRUE,
                        legend = "bottom")
 
 grid
+
+## align = hv in cow plot high light the years that mountain so that the y axis starts in the same way 
+## scale_y_continours
+
+### to scale the water yeild - scale_y_continuous(trans = "log")
 ```
 
 
@@ -458,6 +529,7 @@ grid
 ### Trimmed to study period water year 2021-2024
 
 The dashed lines represent the site 20-year average annual (WY) values for total SWE or water catchment normalized water yield 
+OLD
 
 ```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
 
@@ -471,7 +543,7 @@ SWP_acc_plotss <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = Wate
   theme(legend.position =  "none")
 
 
-WYeild_acc_plotss <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = WaterYear, y = Water_yeild, color = site)) +
+WYeild_acc_plotss <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = WaterYear, y = Water_yield, color = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=17) +
   geom_line(position = position_dodge(width = 0.1))+
     geom_hline(yintercept = 1052085.5, col = "#054fb9", lty = 2) + 
@@ -495,11 +567,40 @@ grid
 ```
 
 
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
+
+ppt_accum_plots <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = WaterYear, y = Total_ppt*0.001, color = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=15) +
+  geom_line(position = position_dodge(width = 0.1))+
+    geom_hline(yintercept = 1718.2429*0.001, col = "#054fb9", lty = 2) + 
+  geom_hline(yintercept = 843.7667*0.001, col = "#DD6E42", lty = 2) + 
+  theme_classic() +  ylab(expression(atop("Annual accumulated", PPT~(m~y^-1)))) +
+  xlab(NULL) + scale_color_manual(values = site_colors) +
+  theme(legend.position =  "none")
+  
+```
+
+### New grid with just ppt accumulated 
+
+```{r, warning=F, echo=F,include=T, fig.width=3, fig.height=6}
+grid <- ggarrange(ppt_accum_plots,
+                       WYeild_acc_plotss, 
+                       ncol = 1, 
+                       nrow = 2, 
+                       common.legend = TRUE,
+                       legend = "bottom")
+
+grid
+
+```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 # ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Hydro_pannel.png", plot = grid, width = 2.25, height = 4.5, units = "in")
 
 ```
+
+
+Junk calcs 
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 (98090-65774)/98090 # SWE

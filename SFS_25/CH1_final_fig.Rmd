@@ -67,6 +67,14 @@ site_colors <- c(
   "GBU" = "#d9cb7c"
 )
 
+siteC_colors <- c(
+  "BWL" = "#054fb9",
+  "BWU" = "#054fb9",
+  "GBL" = "#DD6E42",
+  "GBU" = "#DD6E42"
+)
+
+
 
 catch_colors <- c(
   "BW" = "#054fb9",
@@ -958,8 +966,10 @@ xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
  ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
     scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
       scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
-     scale_color_viridis_d(option = "viridis") +
-  theme_classic()
+     scale_color_viridis_d(option = "viridis", name = "Water year") +
+  theme_classic() +
+          annotate("text", x = 12, y = -2, label = "BWL", size = 6, fontface = "bold", hjust = 0.5) 
+
 
 # 
 # BWU_KD_plot <- ggplot(
@@ -1009,10 +1019,12 @@ BWU_KD_plot <- ggplot(BWU_DF_fixed, aes(x = GPP_mean, y = ER_mean, color = water
   geom_abline(slope = -1, intercept = 0, linetype = "dashed", color = "black") +  # 1:1 line
   scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
   scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
-  xlab(NULL) +
-  ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
-  scale_color_viridis_d(option = "viridis") +
-  theme_classic() 
+  xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
+  ylab(NULL) +
+  #ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
+  scale_color_viridis_d(option = "viridis", name = "Water year") +
+  theme_classic() +
+        annotate("text", x = 12, y = -2, label = "BWU", size = 6, fontface = "bold", hjust = 0.5) 
 BWU_KD_plot
 
 
@@ -1071,11 +1083,13 @@ GBU_KD_plot <- ggplot() +
   scale_x_continuous(position = "top") +
     #xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
    xlab(NULL) +
-  ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
+    ylab(NULL) +
+  #ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
     scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
     scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
-  scale_color_viridis_d(option = "viridis") +
-  theme_classic()
+  scale_color_viridis_d(option = "viridis", name = "Water year") +
+  theme_classic() +
+        annotate("text", x = 12, y = -2, label = "GBU", size = 6, fontface = "bold", hjust = 0.5) 
 
 GBU_KD_plot
 
@@ -1106,10 +1120,11 @@ GBL_KD_plot <- ggplot() +
    xlab(NULL) +
   ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
   scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
-
       scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
-  scale_color_viridis_d(option = "viridis") +
-  theme_classic()
+  scale_color_viridis_d(option = "viridis",  name = "Water year") +
+  theme_classic() +
+      annotate("text", x = 12, y = -2, label = "GBL", size = 6, fontface = "bold", hjust = 0.5) 
+
 
 ```
 
@@ -1131,7 +1146,7 @@ GBU_KD_plot <- GBU_KD_plot +
 ### Modified figure 2
 #### (Q1) - How does stream metabolism vary based on catchment characteristics, antecedent flow conditions, and nitrogen availability?
 
-```{r, warning=F, size = 'small', echo=F, fig.width=4, fig.height=10}
+```{r, warning=F, size = 'small', echo=F, fig.width=6, fig.height=7}
 # Arrange plots with shared legend at the bottom
 KD_coeff_grid <- ggarrange(
   BWL_KD_plot,
@@ -1139,7 +1154,7 @@ KD_coeff_grid <- ggarrange(
   GBL_KD_plot,
   GBU_KD_plot,
   labels = c("a", "b", "c", "d"),
-  ncol = 1, nrow = 4,
+  ncol = 2, nrow = 2,
   common.legend = TRUE, 
   legend = "bottom"
 )
@@ -1148,7 +1163,7 @@ KD_coeff_grid
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig2_KD_CH1_grid_scaled.png", plot = KD_coeff_grid, width = 3, height = 8.5, units = "in")
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig2_KD_CH1_grid_v2.png", plot = KD_coeff_grid, width = 6, height = 5.25, units = "in")
 
 ```
 
@@ -1259,9 +1274,9 @@ fxd_eff <- rbind(fixed_effects_gb1, fixed_effects1)
 
 fxd_eff1 <- fxd_eff %>%
   mutate(Significance = case_when(
-    p.value <= 0.055 ~ "sig",
-    p.value > 0.055 & p.value <= 0.09  ~ "marg.",
-    p.value > 0.09  ~ "not sig."))
+    p.value <= 0.05 ~ "sig",
+    p.value > 0.05 & p.value <= 0.1  ~ "marg.",
+    p.value > 0.1  ~ "not sig."))
 
 
 term_labels <- c(
@@ -1365,9 +1380,9 @@ fxd_eff_chla <- rbind(fixed_effects_chlg1, fixed_effects_chl1)
 
 fxd_eff_chla1 <- fxd_eff_chla %>%
   mutate(Significance = case_when(
-    p.value <= 0.055 ~ "sig.",
-    p.value > 0.055 & p.value <= 0.09  ~ "marg.",
-    p.value > 0.09  ~ "not sig."))
+    p.value <= 0.05 ~ "sig.",
+    p.value > 0.05 & p.value <= 0.1  ~ "marg.",
+    p.value > 0.1  ~ "not sig."))
 
 
 term_labels_chla <- c(
@@ -1394,7 +1409,7 @@ chla_coeff_plot <-ggplot(fxd_eff_chla1, aes(x = estimate, y = reorder(term, esti
   geom_vline(xintercept = 0) +
   labs(
     x = NULL,
-    y = "Predictors",
+    y = NULL,
     title = "Epilithic chl-a"
   ) +
   scale_y_discrete(labels = term_labels_chla) +
@@ -1496,9 +1511,9 @@ fxd_eff_nep <- rbind(fixed_effects_nep, fixed_effects_nep1)
 
 fxd_eff_nep1 <- fxd_eff_nep %>%
   mutate(Significance = case_when(
-    p.value <= 0.055 ~ "sig.",
-    p.value > 0.055 & p.value <= 0.09  ~ "marg.",
-    p.value > 0.09  ~ "not sig."))
+    p.value <= 0.05 ~ "sig.",
+    p.value > 0.05 & p.value <= 0.1  ~ "marg.",
+    p.value > 0.1  ~ "not sig."))
 
 
 term_labels_nep <- c(
@@ -1524,7 +1539,7 @@ nep_coeff_plot <-ggplot(fxd_eff_nep1, aes(x = estimate, y = reorder(term, estima
   scale_color_manual(values = catch_colors) +
   geom_vline(xintercept = 0) +
   labs(
-    x = NULL,
+    x = "Scaled effect size",
     y = "Predictors",
     title = "GPP"
   ) +
@@ -1599,9 +1614,9 @@ fxd_eff_er <- rbind(fixed_effects_er, fixed_effects_er1)
 
 fxd_eff_er1 <- fxd_eff_er %>%
   mutate(Significance = case_when(
-    p.value <= 0.055 ~ "sig.",
-    p.value > 0.055 & p.value <= 0.09  ~ "marg.",
-    p.value > 0.09  ~ "not sig."))
+    p.value <= 0.05 ~ "sig.",
+    p.value > 0.05 & p.value <= 0.1  ~ "marg.",
+    p.value > 0.1  ~ "not sig."))
 
 
 term_labels_er <- c(
@@ -1627,7 +1642,7 @@ er_coeff_plot <-ggplot(fxd_eff_er1, aes(x = estimate, y = reorder(term, estimate
   geom_vline(xintercept = 0) +
   labs(
     x = "Scaled effect size",
-    y = "Predictors",
+    y = NULL,
     title = "|ER|"
   ) +
   scale_y_discrete(labels = term_labels_er) +
@@ -1647,7 +1662,7 @@ er_coeff_plot
 Mainly addresses how productivity is associated with nutrients and water
 quality:
 
-```{r, warning=F, size = 'small', echo=F, fig.width=4, fig.height=10}
+```{r, warning=F, size = 'small', echo=F, fig.width=6, fig.height=6}
 
 ### big grid 
 coeff_grid <- ggarrange(
@@ -1655,31 +1670,32 @@ coeff_grid <- ggarrange(
   chla_coeff_plot,
   nep_coeff_plot,
   er_coeff_plot,
-  ncol = 1, nrow = 4,
+  ncol = 2, nrow = 2,
   common.legend = TRUE, 
-  legend = "bottom")
-
-
-coeff_grid <- ggarrange(
-  Biomass_coeff_plot + theme(legend.position = "bottom") + 
-    guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
-  chla_coeff_plot + theme(legend.position = "bottom") + 
-    guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
-  nep_coeff_plot + theme(legend.position = "bottom") + 
-    guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
-  er_coeff_plot + theme(legend.position = "bottom") + 
-    guides(color = guide_legend(nrow = 3), shape = guide_legend(nrow = 4)),
   labels=c("a", "b", "c", "d"),
-  ncol = 1, nrow = 4,
-  common.legend = TRUE,
-  legend = "bottom"
-)
+  legend = "bottom")
+# 
+# 
+# coeff_grid <- ggarrange(
+#   Biomass_coeff_plot + theme(legend.position = "bottom") + 
+#     guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
+#   chla_coeff_plot + theme(legend.position = "bottom") + 
+#     guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
+#   nep_coeff_plot + theme(legend.position = "bottom") + 
+#     guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 3)),
+#   er_coeff_plot + theme(legend.position = "bottom") + 
+#     guides(color = guide_legend(nrow = 3), shape = guide_legend(nrow = 4)),
+#   labels=c("a", "b", "c", "d"),
+#   ncol = 1, nrow = 4,
+#   common.legend = TRUE,
+#   legend = "bottom"
+# )
 
 coeff_grid
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig4_coeff_ecol_CH1_grid.png", plot = coeff_grid, width = 3.5, height = 12, units = "in")
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig4_coeff_ecol_CH1_grid.png", plot = coeff_grid, width = 5.5, height = 5.25, units = "in")
 
 ```
 
@@ -1766,35 +1782,38 @@ covariat_NS_ND <- covariat_nitrogen2%>%
   mutate(NO3_SupDem = (NO3_supply/Ndemand),
          NH4_SupDem = (NH4_supply/Ndemand))
 
-N_ratio_plots <- ggplot(covariat_NS_ND, aes(x = log(NO3_supply+1), y = Ndemand, color = site)) +
-  geom_point(size = 2, alpha = 0.75, position = position_dodge(width = 0.3), shape=17) +
+N_ratio_plots <- ggplot(covariat_NS_ND, aes(x = log(NO3_supply+1), y = Ndemand, color = site, shape=site)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
     geom_point( aes(x = log(NH4_supply+1), y = Ndemand, color = site),
-                size = 2, alpha = 0.75, position = position_dodge(width = 0.3), shape=19) +
+                size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
   geom_abline(slope = 1, intercept = 0, color = "black") +  # 1:1 line
-  scale_color_manual(values = site_colors) +
+  scale_color_manual(values = siteC_colors) +
+      scale_shape_manual(values = c(15,0,17,2)) +
   xlim(0,1) +
    ylab(expression(Nitrogen~demand~(g~N~m^-2~d^-1))) +
      xlab(expression(log(Nitrogen~supply+1)~(g~N~m^-2~d^-1))) +
   theme_classic()
 
 
-NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(NO3_supply<60), aes(y = (NO3_supply), x = jday, color = site)) +
-  geom_point(size = 2, alpha = 0.75, position = position_dodge(width = 0.3), shape=17) +
-    geom_point( aes(y = NH4_supply, x = jday, color = site), 
-                size = 2, alpha = 0.75, position = position_dodge(width = 0.3), shape=19) +
-  scale_color_manual(values = site_colors) +
+NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(NO3_supply<60), aes(y = log(NO3_supply+1), x = jday, color = site, shape=site)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+    geom_point( aes(y = log(NH4_supply+1), x = jday, color = site, shape=site), 
+                size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  scale_color_manual(values = siteC_colors) +
   xlim(15,360) +
   #  ylim(0,5) +
    xlab(NULL) +
-     ylab(expression(Supply~(g~N~m^-2~d^-1))) +
+     ylab(expression(log(Supply+1)~(g~N~m^-2~d^-1))) +
   theme_classic() +
+  scale_shape_manual(values = c(15,0,17,2)) +
     theme(legend.position = "none")  # Remove legend
 
-N_demand_plot1 <- ggplot(covariat_NS_ND, aes(y = (Ndemand), x = jday, color = site)) +
-  geom_point(size = 2.5, alpha = 0.75, position = position_dodge(width = 0.5), shape=1) +
-  scale_color_manual(values = site_colors) +
+N_demand_plot1 <- ggplot(covariat_NS_ND, aes(y = (Ndemand), x = jday, color = site,  shape=site)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.8)) +
+  scale_color_manual(values = siteC_colors) +
    xlab("Day of year") +
     xlim(15,360) +
+    scale_shape_manual(values = c(15,0,17,2)) +
    ylab(expression(Demand~~(g~N~m^-2~d^-1))) +
   theme_classic() +
     theme(legend.position = "none")  # Remove legend
@@ -1882,9 +1901,101 @@ Ndyn_grid
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nsupply_grid_CH1.png", plot = Ndyn_grid, width = 9, height = 4, units = "in")
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nsupply_grid_CH1.png", plot = Ndyn_grid, width = 9.25, height = 4.75, units = "in")
 
 ```
+
+
+
+
+### Plots of Ratios of NH4+- N supply to demand, ratios NO3-- N supply to demand colored by DOY
+
+```{r, warning=F, size = 'small', echo=T, include=F}
+covariat_NS_ND <- covariat_nitrogen2%>%
+  mutate(jday = yday(date))%>%
+  dplyr:: select(date, jday, site, catch, water_year, Ndemand, NO3_supply, NH4_supply) %>%
+  mutate(NO3_SupDem = (NO3_supply/Ndemand),
+         NH4_SupDem = (NH4_supply/Ndemand))
+
+
+## adjust the demand y axis to be from 0 to 1 
+
+N_ratio_plots <- ggplot(covariat_NS_ND, aes(x = log(NO3_supply+1), y = Ndemand, color = jday, shape=site)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+    geom_point( aes(x = log(NH4_supply+1), y = Ndemand, color = jday),
+                size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+  geom_abline(slope = 1, intercept = 0, color = "black") +  # 1:1 line
+    scale_color_viridis_c(option = "magma",  name = "Day of year") +
+      scale_shape_manual(values = c(15,0,17,2)) +
+  xlim(0,1) +
+  ylim(0, 1) +
+   ylab(expression(Nitrogen~demand~(g~N~m^-2~d^-1))) +
+     xlab(expression(log(Nitrogen~supply+1)~(g~N~m^-2~d^-1))) +
+  theme_classic()
+
+
+NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(NO3_supply<60), aes(y = log(NO3_supply+1), x = jday, color = jday, shape=site)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+    geom_point( aes(y = log(NH4_supply+1), x = jday, color = jday, shape=site), 
+                size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
+    scale_color_viridis_c(option = "viridis", name = "Day of year") +  # Use _c for continuous data
+  xlim(15,360) +
+  #  ylim(0,5) +
+   xlab(NULL) +
+     ylab(expression(log(Supply+1)~(g~N~m^-2~d^-1))) +
+  theme_classic() +
+  scale_shape_manual(values = c(15,0,17,2)) +
+    theme(legend.position = "none")  # Remove legend
+
+
+N_demand_plot1 <- ggplot(covariat_NS_ND, aes(y = (Ndemand), x = jday, color = jday, shape = site)) +
+  geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.8)) +
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +  # Use _c for continuous data
+  xlab("Day of year") +
+  xlim(15, 360) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+  ylab(expression(Demand~~(g~N~m^-2~d^-1))) +
+  theme_classic() +
+  theme(legend.position = "none")  # Remove legend
+
+N_demand_plot1
+
+```
+
+
+```{r, warning=F, size = 'small', echo=T, fig.width=8, fig.height=4}
+
+n_s_grid <- ggarrange(
+  NO3_supp_plots,
+  N_demand_plot1,
+  labels = c("b", "c"),
+  ncol = 1, nrow = 2,
+  label.x = 0.95,  # Move label to the right
+  label.y = 1,     # Keep label at the top
+  hjust = 1,       # Right-align the label
+  vjust = 1        # Top-align the label
+)
+
+
+Ndyn_grid <- ggarrange(
+  N_ratio_plots,
+  n_s_grid,
+  ncol = 2, nrow = 1,
+    labels = c("a", ""),
+  common.legend = TRUE, 
+   widths = c(1.75, 2.25),
+  legend = "bottom")
+
+Ndyn_grid
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nsupply_grid_CH1_v2.png", plot = Ndyn_grid, width = 9.25, height = 4.75, units = "in")
+
+```
+
+
 
 ##### Calculations of flow normalized NO3 and NH4 average daily loads by water year:
 
@@ -1925,21 +2036,21 @@ n_up_sum <-n_up%>%
 nup_sum_plot <-ggplot(n_up_sum, aes(x = site, y = Uadd_ug_L, color = site, shape = method)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   geom_errorbar(aes(ymin = Uadd_ug_L_MIN, ymax = Uadd_ug_L_MAX),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
-  theme_classic() + ylab(expression(U[t]~(µg~L^-1~min^-1)))+
+  theme_classic() + ylab(expression(U[t]~(µg~m^-2~min^-1)))+
+  # ylab(expression(U[t]~(µg~L^-1~min^-1)))+
   xlab(NULL) +
   #scale_shape_manual(values = c(4, 19)) +
-  scale_color_manual(values = site_colors) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  scale_color_manual(values = siteC_colors) #+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 nvf_sum_plot <-ggplot(n_up_sum, aes(x = site, y = Vf_m, color = site, shape = method)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   geom_errorbar(aes(ymin = Vf_m_MIN, ymax = Vf_m_MAX),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
-  theme_classic()  + ylab(expression(V[f]~(µg~m^-1~min^-1)))+
+  theme_classic()  + ylab(expression(V[f]~(m~min^-1)))+
+ # ylab(expression(V[f]~(µg~m^-1~min^-1)))+
   xlab(NULL) +
   #scale_shape_manual(values = c(4, 19)) +
-  scale_color_manual(values = site_colors) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  scale_color_manual(values = siteC_colors) #+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 nsw_sum_plot <-ggplot(n_up_sum, aes(x = site, y = sw, color = site, shape = method)) +
@@ -1948,8 +2059,7 @@ nsw_sum_plot <-ggplot(n_up_sum, aes(x = site, y = sw, color = site, shape = meth
   theme_classic()  + ylab(expression(S[w]~(m)))+
   xlab(NULL) +
   #scale_shape_manual(values = c(4, 19)) +
-  scale_color_manual(values = site_colors) + 
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  scale_color_manual(values = siteC_colors) #+ theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 
 
@@ -1959,7 +2069,7 @@ nsw_sum_plot <-ggplot(n_up_sum, aes(x = site, y = sw, color = site, shape = meth
 
 Figure 5 a-c
 
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=5, fig.height=3}
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=5, fig.height=3}
 # Combine plots with a shared legend
 Nup_grid <- ggarrange(
   nup_sum_plot,
@@ -1984,7 +2094,7 @@ Nup_grid
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/supp\ figures/Nuptake_CH1_grid.png", plot = Nup_grid, width = 3.25, height = 7, units = "in")
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nuptake_CH1_gridv2.png", plot = Nup_grid, width = 7, height = 2.5, units = "in")
 ```
 
 #### Correlations between N uptake and ...
@@ -2407,8 +2517,8 @@ Nup_grid3 <- ggarrange(
   U_Q_plt, # j
   U_NO3_plt, # k
   U_NH4_plt, # l
-  labels = c("d", "e", "f", "g", 
-             "h", "i", "j", "k"),
+  labels = c("a", "b", "c", "d", 
+             "e", "f", "g", "h"),
   ncol = 2, nrow = 4,
   common.legend = TRUE,
   legend = "right",
@@ -2419,35 +2529,36 @@ Nup_grid3 <- ggarrange(
 Nup_grid3
 ```
 
-```{r, warning=F, size = 'small', echo=F, include=T, fig.width=4.75, fig.height=7}
-# Create the top row with extra spacing on both sides
-#top_row <- ggdraw() + draw_plot(Nup_grid, x = 0.05, width = 0.95)  # Centered with 25% narrower width
 
-# Arrange the plots
-Nup_grid4 <- plot_grid(
-  Nup_grid, Nup_grid3,
-  ncol = 1, rel_heights = c(1.1, 3.90)  # Keeps the bottom row proportionally larger
-)
-
-# Display the plot
-print(Nup_grid4)
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=4.75, fig.height=7}
+ 
+# # Create the top row with extra spacing on both sides
+# #top_row <- ggdraw() + draw_plot(Nup_grid, x = 0.05, width = 0.95)  # Centered with 25% narrower width
 # 
-# 
-# 
-# 
-# Nup_grid4 <- ggarrange(
-#   Nup_grid,
-#   Nup_grid3,
-#   ncol = 1, nrow = 2,
-#   common.legend = TRUE,
-#   legend = "right"
-#   ##
+# # Arrange the plots
+# Nup_grid4 <- plot_grid(
+#   Nup_grid, Nup_grid3,
+#   ncol = 1, rel_heights = c(1.1, 3.90)  # Keeps the bottom row proportionally larger
 # )
-
+# 
+# # Display the plot
+# print(Nup_grid4)
+# # 
+# # 
+# # 
+# # 
+# # Nup_grid4 <- ggarrange(
+# #   Nup_grid,
+# #   Nup_grid3,
+# #   ncol = 1, nrow = 2,
+# #   common.legend = TRUE,
+# #   legend = "right"
+# #   ##
+# # )
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nuptake_CH1_grid_v4.png", plot = Nup_grid4, width = 5.15, height = 11, units = "in")
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nuptake_supp_CH1_grid.png", plot = Nup_grid3, width = 5.15, height = 8.5, units = "in")
 
 ```
 
@@ -2637,22 +2748,27 @@ r.squaredGLMM(lmm_WY_demand_Q)
 ##### plots
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE,fig.width=6, fig.height=4}
-GPP_plots <- ggplot(metab_plots_WY, aes(x = water_year, y = GPP, color = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+GPP_plots <- ggplot(metab_plots_WY%>%filter(water_year<2024), aes(x = water_year, y = GPP, color = site, shape=site)) +
+  geom_point(size = 4, alpha = 0.95, position = position_dodge(width = 0.3)) +
   geom_line(position = position_dodge(width = 0.3))+
   geom_errorbar(aes(ymin =GPP-GPP_se, ymax = GPP+GPP_se),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
   theme_classic() + ylab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
-  xlab(NULL) + scale_color_manual(values = site_colors) +
-  theme(legend.position =  "none")
+  xlab(NULL) + scale_color_manual(values = siteC_colors) +
+  theme(legend.position =  "none") +
+    scale_shape_manual(values = c(15,0,17,2)) +
+    scale_x_continuous(breaks = seq(floor(min(nuts_plots_WY$water_year)), ceiling(max(nuts_plots_WY$water_year)), by = 1), labels = function(x) as.character(round(x)))
+
 GPP_plots  
 
-ER_plots <- ggplot(metab_plots_WY, aes(x = water_year, y = ER, color = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+ER_plots <- ggplot(metab_plots_WY%>%filter(water_year<2024), aes(x = water_year, y = ER, color = site, shape=site)) +
+  geom_point(size = 4, alpha = 0.95, position = position_dodge(width = 0.3)) +
   geom_line(position = position_dodge(width = 0.3))+
   geom_errorbar(aes(ymin =ER-ER_se, ymax = ER+ER_se),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
   theme_classic() + ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
-  xlab(NULL) + scale_color_manual(values = site_colors) +
-    theme(legend.position =  "none")
+  xlab(NULL) + scale_color_manual(values = siteC_colors) +
+    theme(legend.position =  "none") +
+      scale_shape_manual(values = c(15,0,17,2)) +
+    scale_x_continuous(breaks = seq(floor(min(nuts_plots_WY$water_year)), ceiling(max(nuts_plots_WY$water_year)), by = 1), labels = function(x) as.character(round(x)))
 
 ER_plots  
 
@@ -2660,34 +2776,37 @@ ER_plots
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE,fig.width=6, fig.height=4}
 # 
-NO3_plots <- ggplot(nuts_plots_WY, aes(x = (water_year), y = NO3_supplym, color = site)) +
+NO3_plots <- ggplot(nuts_plots_WY, aes(x = (water_year), y = NO3_supplym, color = site, shape=site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   geom_line(position = position_dodge(width = 0.3))+
   geom_errorbar(aes(ymin=NO3_supplym-(NO3_supply_se), ymax = NO3_supplym+(NO3_supply_se)),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
   theme_classic() + ylab(expression(NO[3]~supply~(g~N~m^-2~d^-1))) +
   #ylim(0,50)+
-  xlab(NULL) + scale_color_manual(values = site_colors) +
+  xlab(NULL) + scale_color_manual(values = siteC_colors) +
+      scale_shape_manual(values = c(15,0,17,2)) +
       scale_x_continuous(breaks = seq(floor(min(nuts_plots_WY$water_year)), ceiling(max(nuts_plots_WY$water_year)), by = 1), labels = function(x) as.character(round(x)))
 
 
-NH4_plots <- ggplot(nuts_plots_WY, aes(x = (water_year), y = NH4_supplym, color = site)) +
+NH4_plots <- ggplot(nuts_plots_WY, aes(x = (water_year), y = NH4_supplym, color = site, shape=site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1)) +
   geom_line(position = position_dodge(width = 0.1))+
   geom_errorbar(aes(ymin=NH4_supplym-NH4_supply_se, ymax = NH4_supplym+NH4_supply_se),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.1)) +
    # ylim(0,50)+
   theme_classic() + ylab(expression(NH[4]~supply~(g~N~m^-2~d^-1))) + # mg N m-2 day -1
-  xlab(NULL) + scale_color_manual(values = site_colors) +
+  xlab(NULL) + scale_color_manual(values = siteC_colors) +
+        scale_shape_manual(values = c(15,0,17,2)) +
         scale_x_continuous(breaks = seq(floor(min(nuts_plots_WY$water_year)), ceiling(max(nuts_plots_WY$water_year)), by = 1), labels = function(x) as.character(round(x)))
 NH4_plots  
 
-N_demand_plots <- ggplot(nuts_plots_WY, aes(x = (water_year), y = Ndemandm, color = site)) +
+N_demand_plots <- ggplot(nuts_plots_WY, aes(x = (water_year), y = Ndemandm, color = site, shape=site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   geom_line(position = position_dodge(width = 0.3)) +
   geom_errorbar(aes(ymin =(Ndemandm-Ndemand_se), ymax = (Ndemandm+Ndemand_se)),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
   theme_classic() +   
   ylab(expression(Nitrogen~demand~(g~N~m^-2~d^-1))) +
  #ylim(0,300)+
-  xlab(NULL) + scale_color_manual(values = site_colors)  +
+          scale_shape_manual(values = c(15,0,17,2)) +
+  xlab(NULL) + scale_color_manual(values = siteC_colors)  +
         scale_x_continuous(breaks = seq(floor(min(nuts_plots_WY$water_year)), ceiling(max(nuts_plots_WY$water_year)), by = 1), labels = function(x) as.character(round(x)))
 N_demand_plots
 
@@ -2697,7 +2816,7 @@ N_demand_plots
 
 Values averaged across March to October observations
 
-```{r, warning=F, size = 'small', echo=T, fig.width=8, fig.height=6}
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=8, fig.height=6}
 
 WY_n_grid <- ggarrange(
   N_demand_plots,
@@ -3063,13 +3182,14 @@ Stoich_plot <- Stoich_df %>%
   )
 
 
-N_P_plots <- ggplot(Stoich_plot, aes(x = (water_year), y = N_P_ratiom, color = site)) +
+N_P_plots <- ggplot(Stoich_plot, aes(x = (water_year), y = N_P_ratiom, color = site, shape=site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   geom_line(position = position_dodge(width = 0.3))+
   geom_errorbar(aes(ymin =N_P_ratiom-N_P_se, ymax = N_P_ratiom+N_P_se),  width = 0.05, height = 0, alpha = 0.75, position = position_dodge(width = 0.3)) +
   theme_classic() + ylab(expression(N:P~(µM~L^-1))) +
  #ylim(0,300)+
-  xlab(NULL) + scale_color_manual(values = site_colors)  +
+ scale_shape_manual(values = c(15,0,17,2)) +
+  xlab(NULL) + scale_color_manual(values = siteC_colors)  +
         scale_x_continuous(breaks = seq(floor(min(nuts_plots_WY$water_year)), ceiling(max(nuts_plots_WY$water_year)), by = 1), labels = function(x) as.character(round(x)))
 N_P_plots
 
@@ -3132,7 +3252,7 @@ print(WY_n_grid3)
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/WY_n_grid_CH1_v2.png", plot = WY_n_grid3, width = 8.5, height = 6.25, units = "in")
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/WY_n_grid_CH1_v2.png", plot = WY_n_grid3, width = 8.5, height = 5.25, units = "in")
 
 ```
 
