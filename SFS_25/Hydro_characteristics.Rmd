@@ -240,6 +240,22 @@ flow_plot_BW <- ggplot(data=flow_data_BW) +
 ```
 
 
+```{r, echo=FALSE, fig.width=9, fig.height=6, fig.align='center', inlcude=F}
+flow_plot_BW <- ggplot(data=flow_data_BW%>%mutate(year = year(date), 
+                                                  DOY=yday(date)) %>% filter(year>2020)) + 
+  geom_line(aes(y = scale_Q, x = DOY, color = "Streamflow")) +
+  geom_line(aes(y = bt, x = DOY, color = "Baseflow")) +
+  geom_line(aes(y = qft, x = DOY, color = "Quickflow")) +
+  labs(color = "Components", x = "Date (month-year)", y = expression(Flow~(m^3~s^-1~km^-1))) +
+  scale_color_manual(values = c("Streamflow" = "black", "Baseflow" = "#B51963", "Quickflow" = "#0073E6")) +
+  ggtitle("Blackwood Creek") +
+  #scale_x_datetime(date_breaks = "124 week", date_labels = "%b-%y") +
+  theme_classic() + facet_grid(year~.)+
+  theme(legend.position = NULL)
+
+```
+
+
 ```{r, echo=FALSE, include=TRUE, fig.width=9, fig.height=4, fig.align='center'}
 
 baseflow_plt <- ggarrange(bt_plot_BW, 
@@ -462,18 +478,19 @@ SWP_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Total_SWE*0.001
   theme_classic() + ylab(expression(Annual~accumulated~SWE~(m~y^-1))) +
   xlab(NULL) + scale_color_manual(values = site_colors) +
   theme(legend.position =  "none") +
-      scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
+      scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 1), labels = function(x) as.character(round(x)))
 
 
-WYeild_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Water_yield, color = site)) +
+WYeild_acc_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = log(Water_yield), color = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=17) +
   geom_line(position = position_dodge(width = 0.1))+
-    geom_hline(yintercept = 1052085.5, col = "#054fb9", lty = 2) + 
-  geom_hline(yintercept = 149169.5, col = "#DD6E42", lty = 2) + 
-  theme_classic() + ylab(expression(Annual~water~yield~(m^3~km^-1~y^-1))) +
+    geom_hline(yintercept = log(1052085.5), col = "#054fb9", lty = 2) + 
+  geom_hline(yintercept = log(149169.5), col = "#DD6E42", lty = 2) + 
+  theme_classic() + 
+    ylab(expression(atop("log(Water yield)", ~(m^3~km^-1~y^-1)))) +
   xlab(NULL) + scale_color_manual(values = site_colors) +
   theme(legend.position =  "none") +
-        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
+        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 1), labels = function(x) as.character(round(x)))
 
 
 SWE_m_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Max_SWE*0.001, color = site)) +
@@ -484,7 +501,7 @@ SWE_m_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Max_SWE*0.001, co
   theme_classic() + ylab(expression(Annual~max~SWE~(m~y^-1))) +
   xlab(NULL) + scale_color_manual(values = site_colors) +
   theme(legend.position =  "none") +
-        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
+        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 1), labels = function(x) as.character(round(x)))
 
 
 
@@ -493,14 +510,36 @@ ppt_accum_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Total_ppt*0.0
   geom_line(position = position_dodge(width = 0.1))+
     geom_hline(yintercept = 1718.2429*0.001, col = "#054fb9", lty = 2) + 
   geom_hline(yintercept = 843.7667*0.001, col = "#DD6E42", lty = 2) + 
-  theme_classic() + ylab(expression(Annual~accumulated~ppt~(m~y^-1))) +
+  theme_classic() + 
+  ylab(expression(atop("Accumulated PPT",~(m~y^-1)))) +
   xlab(NULL) + scale_color_manual(values = site_colors) +
   theme(legend.position =  "none") +
-        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 5), labels = function(x) as.character(round(x)))
+        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 1), labels = function(x) as.character(round(x)))
   
   
   
 ```
+
+
+
+```{r, warning=F, echo=F,include=T, fig.width=9.5, fig.height=6}
+grid <- ggarrange(ppt_accum_plots,
+                  WYeild_acc_plots, 
+                       ncol = 1, 
+                       nrow = 2, 
+                        align = "v",
+                       common.legend = TRUE,
+                       legend = "right")
+
+grid
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Hydro_panel_long.png", plot = grid, width = 12, height = 3.25, units = "in")
+
+```
+
 
 ### 20 years of SWE accumulation and water yield  
 
@@ -555,16 +594,6 @@ WYeild_acc_plotss <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = W
   
 ```
 
-```{r, warning=F, echo=F,include=T, fig.width=3, fig.height=6}
-grid <- ggarrange(SWP_acc_plotss,
-                       WYeild_acc_plotss, 
-                       ncol = 1, 
-                       nrow = 2, 
-                       common.legend = TRUE,
-                       legend = "bottom")
-
-grid
-```
 
 
 ```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
@@ -588,14 +617,9 @@ grid <- ggarrange(ppt_accum_plots,
                        ncol = 1, 
                        nrow = 2, 
                        common.legend = TRUE,
-                       legend = "bottom")
+                       legend = "right")
 
 grid
-
-```
-
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Hydro_pannel.png", plot = grid, width = 2.25, height = 4.5, units = "in")
 
 ```
 

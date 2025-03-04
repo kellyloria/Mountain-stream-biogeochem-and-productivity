@@ -1,0 +1,1328 @@
+---
+title: 'Antecedent flow conditions for MS'
+author: "Kelly Loria"
+date: "`r Sys.Date()`"
+output:
+   html_document:
+    theme: united
+    highlight: tango
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=html}
+<style type="text/css">
+body, td {font-size: 13px;}
+code.r{font-size: 9px;}
+pre {font-size: 11px}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = F, message = F)
+knitr::opts_knit$set(root.dir = '/Users/kellyloria/Documents/Publications/')
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+
+```
+
+```{r, echo = F, message = F, include=FALSE}
+### Packages
+#setwd("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/BWL_k600/")
+lapply(c("plyr","dplyr","ggplot2","cowplot",
+         "lubridate","tidyverse", "reshape2", "ggpubr", "ggpattern", "broom.mixed",
+         "glmmTMB", "plotly", "MASS",
+         "lme4", "lmerTest", "MuMIn", "PerformanceAnalytics", "car"), require, character.only=T)
+```
+
+### MS: Spatiotemporal variation in mountain stream metabolism and nitrogen cycling across contrasting flow regimes
+
+```{r, warning=F, size = 'small', echo=FALSE, include=FALSE}
+daoc_date<- Sys.Date()
+
+lapply(c("plyr","dplyr","ggplot2","cowplot",
+         "lubridate","tidyverse", "reshape2", "ggpubr", "ggpattern",
+         "lme4", "lmerTest", "MuMIn", "PerformanceAnalytics", "car"), require, character.only=T)
+site_colors <- c(
+  "BWL" = "#054fb9",
+  "BWU" = "#97b5c2",
+  "GBL" = "#DD6E42",
+  "GBU" = "#d9cb7c"
+)
+
+siteC_colors <- c(
+  "BWL" = "#054fb9",
+  "BWU" = "#054fb9",
+  "GBL" = "#DD6E42",
+  "GBU" = "#DD6E42"
+)
+
+
+
+catch_colors <- c(
+  "BW" = "#054fb9",
+  "GB" = "#DD6E42"
+)
+
+# Define fill patterns for water years
+water_year_patterns <- c("wave","weave","stripe","circle", "stripe", "circle")
+
+
+# Create a sequence of dates
+date_seq <- seq(from = as.Date("2021-03-20"), to = as.Date("2024-10-10"), by = "day")
+
+# Convert the sequence to a dataframe
+date_df <- data.frame(date = date_seq)
+date_df$site <- "BWL"
+date_df$catch <- "BW"
+date_df1 <- data.frame(date = date_seq)
+date_df1$site <- "GBL"
+date_df1$catch <- "GB"
+date_df2 <- data.frame(date = date_seq)
+date_df2$site <- "GBU"
+date_df2$catch <- "GB"
+date_df3 <- data.frame(date = date_seq)
+date_df3$site <- "BWU"
+date_df3$catch <- "BW"
+
+date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
+
+### fxns:
+## Fxn for water year:
+water_year <- function(data) {
+  # Ensure the `date` column exists
+  if (!"date" %in% names(data)) {
+    stop("The dataframe must contain a column named 'date'.")
+  }
+  
+  # Convert the `date` column to Date format (if not already)
+  data$date <- as.Date(data$date)
+  
+  # Add the water_year column
+  data$water_year <- with(data, {
+    year <- as.numeric(format(date, "%Y"))
+    month <- as.numeric(format(date, "%m"))
+    ifelse(month >= 10, year + 1, year)
+  })
+  
+  return(data)
+}
+## Function to perform ANOVA and post-hoc test within each site
+comparisons <- list(
+  c("2021", "2022"),
+  c("2021", "2023"),
+  c("2022", "2023"),
+  c("2023", "2024")
+)
+```
+
+```{r, warning=F, size = 'small', echo=FALSE, include=F}
+date_datf <- water_year(date_datf)
+
+covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat_AFDM.rds") %>%
+  dplyr::select("date", "Site","bulk.density","AFDM_mgg","AFDM_mgcm2", "Chla_ugL_Q", "Pheo_ugL_Q")
+summary(covariat_dat)
+
+covariat_dat <- date_datf %>%
+  left_join(covariat_dat, by=c("date", "site"="Site"))
+
+flow_df <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_flow_df.rds")
+
+covariat_dat <- covariat_dat %>%
+    left_join(flow_df, by=c("date", "site"))
+
+
+bg_nuts <- readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
+  filter(location=="stream") %>%
+    mutate(NO3_mgL_dl = if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl))%>%
+    mutate(NH4_mgL_dl=if_else(NH4_mgL_dl < 0.001, 0.001, NH4_mgL_dl))%>%
+    mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl)) %>%
+  mutate(PO4_ugL_dl=if_else(DOC_mgL_dl < 0.25, 0.125, DOC_mgL_dl)) %>%
+  group_by(site, shore, date, depth, location, substrate) %>%
+  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+
+
+##### pivot wider 
+bg_nuts_wide <- bg_nuts %>%
+  dplyr::select(site, date, substrate, NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill) %>%
+  group_by(site, date,substrate) %>% 
+  summarise(across(c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), mean, na.rm = TRUE), .groups = "drop") %>% 
+  pivot_wider(names_from = substrate, values_from = c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), names_sep = "_")
+
+######
+
+
+WQ_dat <- read.csv("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/Stream_Lake_YSI_WaterQuality.csv")%>%
+  mutate(date = as.Date(date, format="%m/%d/%y")) %>%
+  dplyr::select("site", "date","pH") %>%
+  dplyr:: group_by(site, date) %>%
+  dplyr::summarise(pH=mean(pH, na.rm=T))
+
+covariat_datq <- covariat_dat%>%
+  left_join(bg_nuts_wide[ , c("site", "date", "NO3_mgL_dl_sw", "NO3_mgL_dl_pw", "NH4_mgL_dl_sw", 
+                              "NH4_mgL_dl_pw", "PO4_ugL_dl_sw","PO4_ugL_dl_pw", "DOC_mgL_dl_sw",
+                              "DOC_mgL_dl_pw", "pH_infill_sw",  "pH_infill_pw")], by=c("date", "site"))
+
+covariat_datq <- covariat_datq%>%
+  left_join(WQ_dat,  by=c("date", "site"))
+
+
+## bring in SPC data 
+### missing 2024 BW SPC
+SPC_BWL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWL_SPCv2.rds") %>%
+  filter(datetime>as.POSIXct("2021-04-29 24:00:00"))
+SPC_BWL$site <- "BWL"
+SPC_BWU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWU_SPCv2.rds")
+SPC_BWU$site <- "BWU"
+SPC_GBL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBL_SPCv2.rds")
+SPC_GBL$site <- "GBL"
+SPC_GBU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBU_SPCv2.rds")
+SPC_GBU$site <- "GBU"
+
+SPC_dat <- rbind(SPC_BWL, SPC_BWU, SPC_GBL, SPC_GBU)
+SPC_dat <- SPC_dat %>%
+  mutate(date =as.Date(datetime)) 
+
+SPC_dat_day <- SPC_dat %>%
+  dplyr::group_by(site, date) %>%
+  dplyr::summarise(
+    wt= mean(wtr, na.rm=T),
+    wt_sd= sd(wtr, na.rm=T),
+    SPC_m=mean(SPC, na.rm=T),
+    SPC_sd=sd(SPC, na.rm=T))
+
+#hist(SPC_dat_day$wt_sd)
+#hist(SPC_dat_day$SPC_sd)
+
+SPC_datD <- SPC_dat_day %>%
+  filter(wt_sd<4.1 & SPC_sd <35)
+  
+#hist(SPC_datD$wt_sd)
+#hist(SPC_datD$SPC_sd)
+  
+covariat_datq <- covariat_datq%>%
+  left_join(SPC_datD, by=c("date", "site"))
+
+### 
+## Bring in morph data : 
+morph_df <- read.csv("/Users/kellyloria/Documents/UNR/MSMmetab/stream_morphology_core.csv")%>%
+  filter(quality =="trust") %>%
+    mutate(datetime = as.POSIXct(datetime, format="%Y-%m-%dT%H:%M:%SZ"),
+           date=as.Date(datetime)) %>%
+  rename(site="Site")
+
+
+Morph_dat_day <- morph_df%>%
+  dplyr::group_by(site, date) %>%
+  dplyr::summarise(
+    v_m=mean(v_estimation, na.rm=T),
+    w_m=mean(w, na.rm=T),
+    depth_measure=mean(z, na.rm=T))
+
+
+covariat_datq <- covariat_datq%>%
+  left_join(Morph_dat_day, by=c("date", "site"))
+
+#### DO ###
+## BWL  
+BWL_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWL_mod_dat.rds") %>%
+  mutate(site="BWL")
+summary(BWL_dat) 
+
+## BWU 
+BWU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/BWU_k600/25_BWU_mod_dat.rds") %>%
+  mutate(site="BWU")
+summary(BWU_dat)
+
+## GBL 
+GBL_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBL_mod_dat.rds") %>%
+  mutate(site="GBL")
+summary(GBL_dat)
+
+## GBU 
+GBU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBU_mod_dat.rds") %>%
+  mutate(site="GBU")
+summary(GBU_dat)
+
+
+miniDOT_dat <- rbind(BWL_dat, BWU_dat, GBL_dat, GBU_dat)
+miniDOT_dat_day <- miniDOT_dat%>%
+  mutate(date =as.Date(solar.time))%>%
+  dplyr::group_by(site, date) %>%
+  dplyr::summarise(
+    do.obs_m=mean(DO.obs, na.rm=T),
+    do.obs_sd=sd(DO.obs, na.rm=T),
+    wtr_m=mean(temp.water, na.rm=T),
+    wtr_sd=sd(temp.water, na.rm=T))
+
+covariat_datq <- covariat_datq%>%
+  left_join(miniDOT_dat_day, by=c("date", "site"))
+
+### N-uptake metrics
+n_up <- read.csv("/Users/kellyloria/Documents/UNR/Ncycle/BTC_N_Table_2025_figure.csv")%>%
+  mutate(date = as.Date(date, format="%m/%d/%y")) 
+
+covariat_datq <- covariat_datq%>%
+  left_join(n_up, by=c("date", "site"))
+
+##================================
+## Load metabolism model data
+##================================
+BWL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWL_Full_2025-02-06_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>% 
+  mutate(site="BWL",
+         catch="BW")
+
+summary(BWL_met_binned)
+
+GBL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBL_Full_2025-02-02_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
+  mutate(site="GBL",
+         catch="GB")
+
+
+BWU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWU_Full_2025-02-04_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
+  mutate(site="BWU",
+         catch="BW")
+
+GBU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBU_Full_2025-02-03_daily.csv") %>%
+  filter(GPP_daily_Rhat<1.05)%>%
+  filter(GPP_97.5pct>0)%>%
+  filter(ER_daily_Rhat<1.05) %>%
+  filter(ER_2.5pct<0)%>%
+  filter(K600_daily_Rhat<1.05) %>%
+  mutate(
+    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
+  filter(ER_mean < 0.01) %>%
+  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
+  dplyr::select(date,GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
+                GPP_2.5pct, GPP_97.5pct, 
+                ER_2.5pct, ER_97.5pct,
+                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
+                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
+  mutate(site="GBU",
+         catch="GB")
+
+metab_dat <- rbind(BWL_met_binned, BWU_met_binned, GBL_met_binned, GBU_met_binned)
+
+covariat_datq <- covariat_datq%>%
+  left_join(metab_dat, by=c("date", "site", "catch"))
+
+
+### read in streamlight data
+## BWL  
+BWL_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_BWL.rds")
+summary(BWL_SL_dat) 
+
+## BWU 
+BWU_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_BWU.rds") 
+summary(BWU_SL_dat)
+
+## GBL 
+GBL_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_GBL.rds") 
+summary(GBL_SL_dat)
+
+## GBU 
+GBU_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_GBU.rds") 
+summary(GBU_SL_dat)
+
+light_mod_df <- rbind(BWL_SL_dat, BWU_SL_dat, GBL_SL_dat, GBU_SL_dat)
+
+light_mod_df_day <- light_mod_df%>%
+  mutate(date=as.Date(local_time)) %>%
+  group_by(site, date)%>%
+  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
+  dplyr::select(site, date, LAI, PAR_inc, PAR_bc, veg_shade, bank_shade, PAR_surface)
+
+
+covariat_datq <- covariat_datq%>%
+  left_join(light_mod_df_day, by=c("date", "site"))
+
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+
+covariat_datq$AFDM_ugcm2 <- (covariat_datq$AFDM_mgcm2 *1000)
+#hist(covariat_datq$AFDM_ugcm2 )
+
+covariat_datq$Biom_Chla <- (covariat_datq$AFDM_ugcm2)/(covariat_datq$Chla_ugL_Q)
+#hist(covariat_datq$Biom_Chla)
+
+summary(covariat_datq)
+
+```
+
+Pause to make a column for biomass to chla ratios And also make biomass
+in in micro grams to more comparable to chl-a
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+
+covariat_datq$AFDM_ugcm2 <- (covariat_datq$AFDM_mgcm2 *1000)
+#hist(covariat_datq$AFDM_ugcm2 )
+
+covariat_datq$Biom_Chla <- (covariat_datq$AFDM_ugcm2)/(covariat_datq$Chla_ugL_Q)
+#hist(covariat_datq$Biom_Chla)
+```
+
+Additive columns for combined surface and pore water nutrient as tot\_
+in ugL
+
+```{r, warning=F, size = 'small', echo=T, include=F, fig.width=6, fig.height=4}
+
+covariat_datq$tot_NO3_ugL <- c(covariat_datq$NO3_mgL_dl_pw + covariat_datq$NO3_mgL_dl_sw) *1000
+
+covariat_datq$tot_NH4_ugL <- c(covariat_datq$NH4_mgL_dl_pw + covariat_datq$NH4_mgL_dl_sw) *1000
+
+covariat_datq$tot_PO4_ugL <- c(covariat_datq$PO4_ugL_dl_pw + covariat_datq$PO4_ugL_dl_pw)
+
+covariat_datq$tot_DOC_ugL <- c(covariat_datq$DOC_mgL_dl_pw + covariat_datq$DOC_mgL_dl_sw) *1000
+
+
+summary(covariat_datq)
+
+```
+
+```{r, warning=F, size = 'small', echo=F, fig.width=10, fig.height=12}
+# Separate out BW 
+covariat_datq_BW <- covariat_datq%>%
+  dplyr::filter(site=="BWL" | site=="BWU")
+
+# Separate out GB 
+covariat_datq_GB <- covariat_datq%>%
+  dplyr::filter(site=="GBL" | site=="GBU")
+```
+
+##### Kernal density plots of GPP and ER
+
+Colored by years
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, fig.width=7, fig.height=8}
+library(ggplot2)
+
+BWL_KD_plot <- ggplot(covariat_datq%>%dplyr::filter(site=="BWL" &water_year<2025), aes(x = GPP_mean, y = ER_mean, color = as.factor(water_year))) +
+  geom_density_2d(bins=10, size=1) + 
+  geom_point(alpha=0.5)+
+  geom_abline(slope = -1, intercept = 0, linetype = "dashed", color = "black") +  # 1:1 line
+xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
+ ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
+    scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
+      scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
+     scale_color_viridis_d(option = "viridis", name = "Water year") +
+  theme_classic() +
+          annotate("text", x = 7, y = -2, label = "BW Lower", size = 5, fontface = "bold", hjust = 0.5) 
+
+BWU_DF_fixed <- covariat_datq%>%dplyr::filter(site=="BWU") %>%
+  filter(water_year < 2024) %>%
+  mutate(water_year = factor(water_year, levels = c(2021, 2022, 2023, 2024))) %>%
+  bind_rows(tibble(GPP_mean = NA, ER_mean = NA, water_year = factor(2024, levels = c(2021, 2022, 2023, 2024))))  # Add dummy row
+
+
+BWU_KD_plot <- ggplot(BWU_DF_fixed, aes(x = GPP_mean, y = ER_mean, color = water_year)) +
+  geom_density_2d(bins = 10, size = 1) +
+  geom_point(alpha = 0.5) +
+  geom_abline(slope = -1, intercept = 0, linetype = "dashed", color = "black") +  # 1:1 line
+  scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
+  scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
+  xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
+  ylab(NULL) +
+  #ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
+  scale_color_viridis_d(option = "viridis", name = "Water year") +
+  theme_classic() +
+        annotate("text", x = 7, y = -2, label = "BW Upper", size = 5, fontface = "bold", hjust = 0.5) 
+BWU_KD_plot
+
+
+
+GBU_DF_clean <- covariat_datq%>%dplyr::filter(site=="GBU") %>%
+filter(water_year<2025)%>%
+  filter(!is.na(GPP_mean) & !is.na(ER_mean))%>%
+  dplyr::select(date, water_year, GPP_mean, ER_mean)
+
+# Compute 2D density
+density_data <- with(GBU_DF_clean, kde2d(GPP_mean, ER_mean, n = 100))
+
+# Convert density data to dataframe
+density_df <- data.frame(
+  expand.grid(x = density_data$x, y = density_data$y),
+  z = as.vector(density_data$z)
+)
+
+# Plot with contour lines
+GBU_KD_plot <- ggplot() +
+  geom_point(data = GBU_DF_clean, aes(x = GPP_mean, y = ER_mean, color = as.factor(water_year)), alpha = 0.5) +
+    geom_contour(data = density_df, aes(x = x, y = y, z = z), color = "black", bins = 5, size=1) +
+  geom_abline(slope = -1, intercept = 0, linetype = "dashed", color = "black") +  # 1:1 line
+  scale_x_continuous(position = "top") +
+    #xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
+   xlab(NULL) +
+    ylab(NULL) +
+  #ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
+    scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
+    scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
+  scale_color_viridis_d(option = "viridis", name = "Water year") +
+  theme_classic() +
+        annotate("text", x = 7, y = -2, label = "GB Upper", size = 5, fontface = "bold", hjust = 0.5) 
+
+GBU_KD_plot
+
+
+GBL_DF_clean <- covariat_datq%>%dplyr::filter(site=="GBL") %>%
+  filter(!is.na(GPP_mean) & !is.na(ER_mean))%>%
+  dplyr::select(date, water_year, GPP_mean, ER_mean)
+
+# 
+# library(MASS)
+# 
+# # Compute 2D density
+# density_data <- with(GBL_DF_clean, kde2d(GPP_mean, ER_mean, n = 100))
+# 
+# # Convert density data to dataframe
+# density_df <- data.frame(
+#   expand.grid(x = density_data$x, y = density_data$y),
+#   z = as.vector(density_data$z)
+# )
+
+# Plot with contour lines
+GBL_KD_plot <- ggplot() +
+#  geom_contour(data = density_df, aes(x = x, y = y, z = z), color = "black", bins = 10) +
+  geom_point(data = GBL_DF_clean%>%filter(water_year<2025), aes(x = GPP_mean, y = ER_mean, color = as.factor(water_year)), alpha = 0.5) +
+  geom_abline(slope = -1, intercept = 0, linetype = "dashed", color = "black") +  # 1:1 line
+  scale_x_continuous(position = "top") +
+    #xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
+   xlab(NULL) +
+  ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
+  scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
+      scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
+  scale_color_viridis_d(option = "viridis",  name = "Water year") +
+  theme_classic() +
+      annotate("text", x = 7, y = -2, label = "GB Lower", size = 5, fontface = "bold", hjust = 0.5) 
+
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=4, fig.height=10}
+# Modify each plot to rename legend title & adjust legend formatting
+BWL_KD_plot <- BWL_KD_plot + 
+  guides(color = guide_legend(title = "Water year", nrow = 2))
+
+BWU_KD_plot <- BWU_KD_plot + 
+  guides(color = guide_legend(title = "Water year", nrow = 2))
+
+GBL_KD_plot <- GBL_KD_plot + 
+  guides(color = guide_legend(title = "Water year", nrow = 2))
+
+GBU_KD_plot <- GBU_KD_plot + 
+  guides(color = guide_legend(title = "Water year", nrow = 2))
+```
+
+### Modified figure 2
+
+```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=7}
+# Arrange plots with shared legend at the bottom
+KD_coeff_grid <- ggarrange(
+  BWL_KD_plot,
+  BWU_KD_plot,
+  GBL_KD_plot,
+  GBU_KD_plot,
+  labels = c("a", "b", "c", "d"),
+  ncol = 2, nrow = 2,
+  common.legend = TRUE, 
+  legend = "bottom"
+)
+
+KD_coeff_grid
+```
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig2_KD_CH1_grid_v2.png", plot = KD_coeff_grid, width = 6, height = 5.25, units = "in")
+
+```
+
+## Focal Question:
+
+### How does stream metabolism vary based on antecedent flow conditions, and nitrogen availability across small and large stream?
+
+Can we frame wet years as a shrinking productivity window? Or is it more
+a function of a mismatch in phenology ques, where peak light occurs at
+unsuitable streamflows (e.g. to high) for epilithic algae?
+
+##### Ideas:
+
+(1) Figure out what flow threshold at each site we can't really model
+    GPP at?
+
+    (a) How large is that window from year to year?
+
+    (b) How is the cumulative GPP during that time?
+
+    (c) How is the cumulative PAR and water temp?
+
+<!-- -->
+
+(2) Center dynamics on that flow threshold
+    (a) X-axis could be time since peak "snow pack metric" or "flow
+        metric"
+
+<!-- -->
+
+(3) Double check there isn't evidence of UV suppression, should double
+    check magnitude of surface PAR
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
+# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
+plot_data_date <- covariat_datq %>%
+  filter(!is.na(do.obs_m))
+
+plot_data_DO <- covariat_datq %>%
+    filter(site=="BWL") %>%
+  filter(!is.na(do.obs_m)) %>%
+   dplyr::select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+plot_data_GPP <- covariat_datq %>%
+      filter(site=="BWL") %>%
+  filter(!is.na(GPP_mean)) %>%
+  dplyr:: select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+# Determine the date range
+date_range <- range(plot_data_date$date, na.rm = TRUE)
+
+# Create the number line plot
+templt <- ggplot(covariat_datq, aes(x = date)) +
+  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
+  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+
+  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
+  scale_y_continuous(name = "", breaks = NULL) +
+  theme_classic() + xlab(NULL) +
+    labs(title = "BW Lower")
+```
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
+# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
+plot_data_date <- covariat_datq %>%
+  filter(!is.na(do.obs_m))
+
+plot_data_DO <- covariat_datq %>%
+    filter(site=="BWU") %>%
+  filter(!is.na(do.obs_m)) %>%
+   dplyr::select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+plot_data_GPP <- covariat_datq %>%
+      filter(site=="BWU") %>%
+  filter(!is.na(GPP_mean)) %>%
+   dplyr::select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+# Determine the date range
+date_range <- range(plot_data_date$date, na.rm = TRUE)
+
+# Create the number line plot
+templt_BWU <- ggplot(covariat_datq, aes(x = date)) +
+  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
+  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+
+  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
+  scale_y_continuous(name = "", breaks = NULL) +
+  theme_classic() + xlab(NULL) +
+    labs(title = "BW Upper")
+```
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
+# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
+plot_data_date <- covariat_datq %>%
+  filter(!is.na(do.obs_m))
+
+plot_data_DO <- covariat_datq %>%
+    filter(site=="GBL") %>%
+  filter(!is.na(do.obs_m)) %>%
+   dplyr::select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+plot_data_GPP <- covariat_datq %>%
+      filter(site=="GBL") %>%
+  filter(!is.na(GPP_mean)) %>%
+   dplyr::select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+# Determine the date range
+date_range <- range(plot_data_date$date, na.rm = TRUE)
+
+# Create the number line plot
+templt_GBL <- ggplot(covariat_datq, aes(x = date)) +
+  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
+  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+
+  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
+  scale_y_continuous(name = "", breaks = NULL) +
+  theme_classic() + xlab(NULL) +
+    labs(title = "GB Lower")
+```
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
+# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
+plot_data_date <- covariat_datq %>%
+  filter(!is.na(do.obs_m))
+
+plot_data_DO <- covariat_datq %>%
+    filter(site=="GBU") %>%
+  filter(!is.na(do.obs_m)) %>%
+  dplyr::select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+plot_data_GPP <- covariat_datq %>%
+  filter(site=="GBU") %>%
+  filter(!is.na(GPP_mean)) %>%
+  dplyr:: select(date, do.obs_m, GPP_mean) %>%
+  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
+
+# Determine the date range
+date_range <- range(plot_data_date$date, na.rm = TRUE)
+
+# Create the number line plot
+templt_GBU <- ggplot(covariat_datq, aes(x = date)) +
+  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
+  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+
+  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
+  scale_y_continuous(name = "", breaks = NULL) +
+  theme_classic() + xlab(NULL) +
+    labs(title = "GB Upper",
+       caption = "Black: DO Observed | Green: GPP Mean")
+```
+
+#### Data resolution for DO and metab
+
+DO in black, metabolism in green
+
+```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=4.5}
+### big grid 
+WY_n_grid2 <- ggarrange(
+  templt,
+  templt_BWU,
+  templt_GBL,
+  templt_GBU,
+  ncol = 1, nrow = 4)
+
+WY_n_grid2
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Sup_Figures/metab_dat_resolution.png", plot = WY_n_grid2, width = 8.25, height = 4.25, units = "in")
+
+```
+
+#### Get snotel data
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+library(snotelr)
+
+# read in the sites data for all SNOTEL sites
+target_snow_data <- snotelr::snotel_download(network = "sntl",
+                                             site_id = c(848, 615), 
+                                             metric = TRUE, internal = TRUE)
+target_snow_data$date<- as.Date(target_snow_data$date)
+
+# transform for water year:
+target_snow_dat<- water_year(target_snow_data)
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+
+
+#Trim for columns 
+target_snow_df <- target_snow_dat %>%
+  filter(water_year>2003) %>%
+  filter(date < as.Date("2024-10-10")) %>%
+  mutate(site = case_when(
+    site_id == 615 ~ "GBL",
+    site_id %in% c(848) ~ "BWL")) %>%
+  dplyr::select(site_name,site_id,date,snow_water_equivalent,precipitation_cumulative,
+         temperature_max,temperature_min,temperature_mean,precipitation, water_year,
+         site)
+
+summary(target_snow_df)
+
+
+result <- target_snow_df %>%
+  filter(date > as.Date("2020-09-30"))%>%
+  arrange(site, date) %>%
+  group_by(site) %>%
+  mutate(
+    daily_delta_SWE = snow_water_equivalent - lag(snow_water_equivalent, default = 0),
+    snow_water_equivalent_cumulative = cumsum(daily_delta_SWE),
+    precipitation_quality = ifelse(daily_delta_SWE > 0, "Accumulate", "Melt"), # not really rain
+    rain = ifelse(daily_delta_SWE < 0, 1, 0)  # again just a really simple proxy
+  ) %>%
+  ungroup()
+
+
+ summarize_transition_to_zero <- function(data) {
+  data %>%
+    filter(lubridate::month(date) >= 4 & lubridate::month(date) <= 7) %>%
+    arrange(site, date) %>%
+    group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
+    summarize(
+      transition_to_zero = date[which.max(
+        (daily_delta_SWE == 0 & lead(daily_delta_SWE == 0, default = FALSE) &
+         lead(daily_delta_SWE == 0, n = 8, default = FALSE) &
+         lag(daily_delta_SWE, default = 0) == 0) &
+         (lead(daily_delta_SWE == 0, n = 8) & lag(daily_delta_SWE == 0, n = 5))
+      )],
+      .groups = 'drop',
+      melt_out_DOY = lubridate::yday(transition_to_zero),
+    ) %>%
+    filter(!is.na(transition_to_zero))
+ }
+ 
+
+summarize_peak_SWE_date <- function(data) {
+  data %>%
+    filter(lubridate::month(date) >= 1 & lubridate::month(date) <= 6) %>%
+    arrange(site, date) %>%
+    group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
+    summarize(
+      peak_SWE_date = date[which.max(snow_water_equivalent)],
+      peak_SWE_day_of_year = lubridate::yday(date[which.max(snow_water_equivalent)]),
+      max_SWE = max(snow_water_equivalent)
+    ) %>%
+    ungroup()
+}
+
+sum_melt <- summarize_transition_to_zero(result)
+
+sum_peakSWE <- summarize_peak_SWE_date(result)
+
+joint_snow<- sum_peakSWE %>%
+left_join(sum_melt, by=c("site", "WaterYear"))
+
+```
+
+#### Rough time series plots to start getting at the antecedent flow conditions
+
+```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=6}
+
+TS_plot <- ggplot(covariat_datq%>%mutate(DOY=yday(date))%>%filter(site=="BWL")%>%filter(water_year<2024), aes(x = DOY, y = PAR_surface, color =as.factor(water_year), shape = site)) +
+  geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
+ # geom_line(aes(x = DOY, y=PAR_inc )) +
+    geom_line(aes(x = DOY, y=(Q_m*100))) +
+ scale_color_viridis_d(option = "viridis") +
+  geom_point(size = 2, alpha = 0.7) +
+  #scale_color_manual(values = siteC_colors) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+  ylab(expression(PAR~at~stream~surface~(mu~mol~m^-2~s^-1))) +
+  theme_classic() + facet_grid(site~.)
+
+TS_plot
+
+
+
+TS_plot1 <- ggplot(covariat_datq%>%filter(water_year<2024), aes(x = Q_m, y = GPP_mean, color =as.factor(water_year), shape = site)) +
+  geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
+ # geom_line(aes(x = DOY, y=PAR_inc )) +
+ #scale_color_viridis_d(option = "viridis") +
+  geom_point(size = 2, alpha = 0.7) +
+  #scale_color_manual(values = siteC_colors) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+  #ylab(expression(PAR~at~stream~surface~(mu~mol~m^-2~s^-1))) +
+  theme_classic() + facet_grid(site~.)
+
+TS_plot1
+```
+
+### (1) Figure out what flow threshold at each site we can't really model GPP at?
+
+#### flow stats for when GPP was modeled
+
+Max Q where GPP was obtained...
+
+-   BWL : 2.763 cms
+
+-   BWU : 5.990 cms
+
+-   GBL : 0.622 cms
+
+-   GBU : 0.299 cms
+
+```{r, warning=F, size = 'small', echo=F, include=T, include=F}
+covariat_datq_BWL_na <- covariat_datq %>%
+  filter(site=="BWL") %>%
+  drop_na(GPP_mean)
+# max flow: 2.76302
+# 3rd q: 0.18728
+# mean q: 0.23213
+
+covariat_datq_BWU_na <- covariat_datq %>%
+    filter(site=="BWU") %>%
+  drop_na(GPP_mean)
+
+# max flow: 5.989955
+# 3rd q: 0.278157
+# mean q: 0.665920
+
+
+covariat_datq_GBL_na <- covariat_datq %>%
+    filter(site=="GBL") %>%
+  drop_na(GPP_mean)
+
+# max flow: 0.62202
+# 3rd q: 0.03807
+# mean q: 0.04228
+
+
+covariat_datq_GBU_na <- covariat_datq %>%
+    filter(site=="GBU") %>%
+  drop_na(GPP_mean)
+
+# max flow: 0.298702
+# 3rd q: 0.037678
+# mean q: 0.029493
+```
+
+#### Get DOY dates for max light and flow
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
+sum_peak_Q <- function(data) {
+  data %>%
+    arrange(site, date) %>%
+    group_by(site, water_year) %>%
+    ## filter for spring runoff
+    mutate(mon = month(date))%>%
+    filter(mon >1 & mon <8) %>%
+    summarize(
+      peak_Q_date = date[which.max(Q_m)],
+      peak_Q_DOY = lubridate::yday(date[which.max(Q_m)]),
+      max_Q = max(Q_m, na.rm=T)
+    ) %>%
+    ungroup()
+}
+
+
+
+sum_peak_SUR_PAR <- function(data) {
+  data %>%
+    arrange(site, date) %>%
+    group_by(site, water_year) %>%
+    ## filter for spring runoff
+    mutate(mon = month(date))%>%
+    summarize(
+      peak_PAR_date = date[which.max(PAR_surface)],
+      peak_PAR_DOY = lubridate::yday(date[which.max(PAR_surface)]),
+      max_PAR = max(PAR_surface, na.rm=T),
+      peak_LAI_date = date[which.max(LAI)],
+      peak_LAI_DOY = lubridate::yday(date[which.max(LAI)]),
+      max_LAI = max(LAI, na.rm=T)
+    ) %>%
+    ungroup()
+}
+
+
+sum_par <- sum_peak_SUR_PAR(covariat_datq)
+
+sum_Q_df <- sum_peak_Q(covariat_datq)
+
+joint_WY<- sum_Q_df %>%
+left_join(sum_par, by=c("site", "water_year"))
+
+```
+
+##### Manually identify baseflow onset
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
+
+p <- covariat_datq %>%
+  mutate(yday=yday(date))%>%
+  filter(site == "GBU") %>%
+  ggplot(aes(x = yday, y = Q_m, col = as.factor(water_year))) +
+  geom_point() +
+  theme_bw() 
+
+# Convert ggplot to plotly
+p_plotly <- ggplotly(p)
+p_plotly
+```
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
+### make dataframe of baseflow onset at each reach 
+BF_df <- data.frame(
+  site = c("BWL", "BWL", "BWL", "BWL",
+           "BWU", "BWU", "BWU",
+           "GBL", "GBL", "GBL", "GBL",
+           "GBU", "GBU", "GBU", "GBU"),
+  
+  water_year = c(2021, 2022, 2023, 2024,
+                 2021, 2022, 2023,
+                 2021, 2022, 2023, 2024,
+                 2021, 2022, 2023, 2024),
+  
+  BF_DOY = c(167, 190, 219, 189,
+             164, 185, 216,
+             130, 142, 200, 165,
+             140, 155, 200, 165)
+)
+
+```
+
+#### Looking at Cumulative GPP
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+# Ensure the date column is in Date format
+covariat_datq1 <- covariat_datq %>%
+  mutate(
+    # Define water year DOY: Oct 1 is DOY 1, Sep 30 is DOY 365 (or 366 for leap years)
+    DOY = as.numeric(difftime(date, ymd(paste0(water_year - 1, "-09-30")), units = "days"))
+  )
+
+# Compute cumulative sum of GPP_mean for each site and water year
+covariat_cumsum <- covariat_datq1 %>%
+  mutate(yday = yday(date),
+         year = year(date)) %>%
+  arrange(site, year, yday) %>%
+  group_by(site, year) %>%
+  mutate(GPP_cumsum = cumsum(ifelse(is.na(GPP_mean), 0, GPP_mean)))
+
+
+# Merge covariat_cumsum with joint_WY to include peak_PAR_DOY
+covariat_cumsum <- covariat_cumsum %>%
+  left_join(joint_WY %>% dplyr::select(site, water_year, peak_PAR_DOY), 
+            by = c("site" = "site", "year" = "water_year")) %>%
+  left_join(BF_df %>% dplyr::select(site, water_year, BF_DOY), 
+            by = c("site" = "site", "year" = "water_year"))
+
+# Plot cumulative GPP across years with vertical lines for peak_PAR_DOY
+ggplot(covariat_cumsum %>% filter(year < 2024), 
+       aes(x = yday, y = GPP_cumsum, color = factor(year))) +
+  geom_line() + 
+  labs(x = "Day of Water Year", y = "Cumulative GPP", color = "Water Year") +
+  theme_classic() + 
+  facet_grid(site ~ ., scales = "free")
+```
+
+Dotted lines for onset of baseflow Dashed lines for peak PAR
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+
+# Plot cumulative GPP across years with vertical lines for peak_PAR_DOY
+ggplot(covariat_cumsum %>% filter(year < 2024), 
+       aes(x = yday, y = GPP_cumsum, color = factor(year))) +
+  geom_line() + 
+  geom_vline(aes(xintercept = peak_PAR_DOY, color = factor(year)), 
+             linetype = "dashed", alpha = 0.9) + 
+  geom_vline(aes(xintercept = BF_DOY, color = factor(year)), 
+             linetype = "dotted", alpha = 0.9) +
+  labs(x = "Day of Water Year", y = "Cumulative GPP", color = "Water Year") +
+  theme_classic() + 
+  facet_grid(site ~ ., scales = "free")
+
+```
+
+#### Looking at cumulative GPP + light + flow at each reach:
+
+### BW Lower
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+
+scale_factor_Qm <- max(covariat_cumsum$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum$Q_m, na.rm = TRUE)
+scale_factor_PAR <- max(covariat_cumsum$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum$PAR_surface, na.rm = TRUE)
+
+BWL_plot <- ggplot(covariat_cumsum %>% filter(site == "BWL"), aes(x = yday)) +
+  # Cumulative GPP (Primary Y-axis)
+  geom_line(aes(y = GPP_cumsum, color = GPP_mean), size = 1.5) + 
+  
+  # Color scale for GPP_mean: lighter for lower values and darker for higher values
+  scale_color_gradient(low = "#b3d4a9", high = "#284a31") +  # Lighter to darker green
+  
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . * scale_factor_Qm, name = "Flow (cms)")  # Adjust `scale_factor_Qm`
+  ) +
+  
+  # Flow (Q_m) as a second y-axis (scaled)
+  geom_line(aes(y = Q_m * scale_factor_Qm), color = "#1c67a3", alpha = 0.9) + 
+  
+  # PAR_surface normalized (third variable, rescaled)
+  geom_line(aes(y = PAR_surface * scale_factor_PAR), color = "goldenrod", linetype = "dotted") +
+  
+  labs(x = "Day of Water Year", color = "GPP Mean", 
+       title = "BW Lower") +
+    ylab(expression(Cumulative~GPP~(g~O[2]~m^-2~d^-1))) +
+  theme_classic() + 
+  facet_grid(year ~ ., scales = "free") 
+BWL_plot
+
+```
+
+### BW Upper
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+BWU_plot <- ggplot(covariat_cumsum %>% filter(site == "BWU" & water_year<2024), aes(x = yday)) +
+  # Cumulative GPP (Primary Y-axis)
+  geom_line(aes(y = GPP_cumsum, color = GPP_mean), size = 1.5) + 
+  
+  # Color scale for GPP_mean: lighter for lower values and darker for higher values
+  scale_color_gradient(low = "#b3d4a9", high = "#284a31") +  # Lighter to darker green
+  
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . * scale_factor_Qm, name = "Flow (cms)")  # Adjust `scale_factor_Qm`
+  ) +
+  
+  # Flow (Q_m) as a second y-axis (scaled)
+  geom_line(aes(y = Q_m * scale_factor_Qm), color = "#1c67a3", alpha = 0.9) + 
+  
+  # PAR_surface normalized (third variable, rescaled)
+  geom_line(aes(y = PAR_surface * scale_factor_PAR), color = "goldenrod", linetype = "dotted") +
+  
+  labs(x = "Day of Water Year", color = "GPP Mean", 
+       title = "BW Upper") +
+  ylab(expression(Cumulative~GPP~(g~O[2]~m^-2~d^-1))) +
+  theme_classic() + 
+  facet_grid(year ~ ., scales = "free") 
+BWU_plot
+
+```
+
+### GB Lower
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+
+covariat_cumsum_gb<- covariat_cumsum%>%filter(site=="GBL")
+
+scale_factor_Qm <- max(covariat_cumsum_gb$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum_gb$Q_m, na.rm = TRUE)
+scale_factor_PAR <- max(covariat_cumsum_gb$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum_gb$PAR_surface, na.rm = TRUE)
+
+
+GBL_plot <- ggplot(covariat_cumsum_gb, aes(x = yday)) +
+  # Cumulative GPP (Primary Y-axis)
+  geom_line(aes(y = GPP_cumsum, color = GPP_mean), size = 1.5) + 
+  
+  # Color scale for GPP_mean: lighter for lower values and darker for higher values
+  scale_color_gradient(low = "#b3d4a9", high = "#284a31") +  # Lighter to darker green
+  
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . * scale_factor_Qm, name = "Flow (cms)")  # Adjust `scale_factor_Qm`
+  ) +
+  
+  # Flow (Q_m) as a second y-axis (scaled)
+  geom_line(aes(y = Q_m * scale_factor_Qm), color = "#1c67a3", alpha = 0.9) + 
+  
+  # PAR_surface normalized (third variable, rescaled)
+  geom_line(aes(y = PAR_surface * scale_factor_PAR), color = "goldenrod", linetype = "dotted") +
+  
+  labs(x = "Day of Water Year", color = "GPP Mean", 
+       title = "GB Lower") +
+  ylab(expression(Cumulative~GPP~(g~O[2]~m^-2~d^-1))) +
+  theme_classic() + 
+  facet_grid(year ~ ., scales = "free") 
+GBL_plot
+
+```
+
+### GB Upper
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+
+covariat_cumsum_gb<- covariat_cumsum%>%filter(site=="GBU")
+
+scale_factor_Qm <- max(covariat_cumsum_gb$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum_gb$Q_m, na.rm = TRUE)
+scale_factor_PAR <- max(covariat_cumsum_gb$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum_gb$PAR_surface, na.rm = TRUE)
+
+
+GBU_plot <- ggplot(covariat_cumsum_gb, aes(x = yday)) +
+  # Cumulative GPP (Primary Y-axis)
+  geom_line(aes(y = GPP_cumsum, color = GPP_mean), size = 1.5) + 
+  
+  # Color scale for GPP_mean: lighter for lower values and darker for higher values
+  scale_color_gradient(low = "#b3d4a9", high = "#284a31") +  # Lighter to darker green
+  
+  scale_y_continuous(
+    sec.axis = sec_axis(~ . * scale_factor_Qm, name = "Flow (cms)")  # Adjust `scale_factor_Qm`
+  ) +
+  
+  # Flow (Q_m) as a second y-axis (scaled)
+  geom_line(aes(y = Q_m * scale_factor_Qm), color = "#1c67a3", alpha = 0.9) + 
+  
+  # PAR_surface normalized (third variable, rescaled)
+  geom_line(aes(y = PAR_surface * scale_factor_PAR), color = "goldenrod", linetype = "dotted") +
+  
+  labs(x = "Day of Water Year", color = "GPP Mean", 
+       title = "GB Lower") +
+  ylab(expression(Cumulative~GPP~(g~O[2]~m^-2~d^-1))) +
+  theme_classic() + 
+  facet_grid(year ~ ., scales = "free") 
+GBU_plot
+
+```
+
+### Leaf area index 2021-2023
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+plot <- ggplot(joint_WY %>% filter(water_year < 2024)) +
+  geom_point(aes(x = water_year, y = peak_LAI_DOY, color = as.factor(water_year), shape = site), 
+             size = 3, alpha = 0.95) +
+  
+  geom_line(aes(x = water_year, y = peak_LAI_DOY, group = site), 
+            alpha = 0.95) +  # Ensure lines connect correctly
+  
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+  theme_classic() +facet_grid(site ~ .)  # Keeps each site in a separate panel
+
+plot
+
+```
+
+### Surface PAR 2021-2023
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+plot <- ggplot(joint_WY %>% filter(water_year < 2024)) +
+  geom_point(aes(x = water_year, y = peak_PAR_DOY, color = as.factor(water_year), shape = site), 
+             size = 3, alpha = 0.95) +
+  
+  geom_line(aes(x = water_year, y = peak_PAR_DOY, group = site), 
+            alpha = 0.95) +  # Ensure lines connect correctly
+  
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+  theme_classic() +
+  facet_grid(site ~ .)  # Keeps each site in a separate panel
+
+plot
+
+```
+
+### Peak spring Q 2021-2023
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+plot <- ggplot(joint_WY %>% filter(water_year < 2024)) +
+  geom_point(aes(x = water_year, y = peak_Q_DOY, color = as.factor(water_year), shape = site), 
+             size = 3, alpha = 0.95) +
+  
+  geom_line(aes(x = water_year, y = peak_Q_DOY, group = site), 
+            alpha = 0.95) +  # Ensure lines connect correctly
+  
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+  theme_classic() +
+  facet_grid(site ~ .)  # Keeps each site in a separate panel
+
+plot
+
+```
+
+### Fxn to get at growing season as first day GPP is > 0.5
+
+
+
+
+### Code sandbox:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
+# library(ggplot2)
+# library(dplyr)
+# library(patchwork)
+# 
+# # Ensure numeric values for scaling factors
+# scale_factor_Qm <- max(covariat_cumsum$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum$Q_m, na.rm = TRUE)
+# scale_factor_PAR <- max(covariat_cumsum$GPP_cumsum, na.rm = TRUE) / max(covariat_cumsum$PAR_surface, na.rm = TRUE)
+# 
+# # First Plot: Cumulative GPP
+# p1 <- ggplot(covariat_cumsum %>% filter(site == "BWL"), aes(x = yday, y = GPP_cumsum)) +
+#   geom_line(aes(color = GPP_mean), size = 1.5) + 
+#   scale_color_gradient(low = "#b3d4a9", high = "#284a31") +  
+#   labs(y = "Cumulative GPP", x = NULL, color = "GPP Mean") +
+#   theme_classic() +
+#   facet_grid(year ~ ., scales = "free")
+# 
+# # Second Plot: Flow (Q_m)
+# p2 <- ggplot(covariat_cumsum %>% filter(site == "BWL"), aes(x = yday, y = Q_m)) +
+#   geom_line(color = "#1c67a3", size = 1) +  
+#   labs(y = "Flow (Q_m)", x = NULL) +
+#   theme_classic() +
+#   facet_grid(year ~ ., scales = "free")
+# 
+# # Third Plot: PAR_surface with scaled GPP and Flow
+# p3 <- ggplot(covariat_cumsum %>% filter(site == "BWL"), aes(x = yday)) +
+#   geom_line(aes(y = GPP_mean, color = "Cumulative GPP"), size = 1.5) + 
+#   geom_line(aes(y = PAR_surface / scale_factor_PAR, color = "PAR_surface (scaled)"), 
+#             linetype = "dotted", size = 1.2) +
+#   geom_line(aes(y = Q_m * scale_factor_Qm, color = "Flow (scaled)"), size = 1) +
+#   scale_color_manual(values = c(
+#     "PAR_surface (scaled)" = "goldenrod", 
+#     "Cumulative GPP" = "#284a31",  # Fixing the color issue
+#     "Flow (scaled)" = "#1c67a3"
+#   )) +
+#   labs(y = "PAR_surface", x = "Day of Water Year", color = "Variables") +
+#   theme_classic() +
+#   theme(axis.title.y = element_text(color = "goldenrod")) + 
+#   facet_grid(year ~ ., scales = "free")
+# 
+# # Extract y-axis labels
+# ylab_p1 <- wrap_elements(get_plot_component(p1, "ylab-l"))
+# ylab_p2 <- wrap_elements(get_plot_component(p2, "ylab-l"))
+# 
+# # Extract y-axes
+# yaxis_p1 <- wrap_elements(get_y_axis(p1))
+# yaxis_p2 <- wrap_elements(get_y_axis(p2))
+# 
+# # Arrange plots using patchwork
+# final_plot <- ylab_p1 + yaxis_p1 + ylab_p2 + yaxis_p2 + p3 +
+#   plot_layout(widths = c(3, 1, 3, 1, 40)) 
+# 
+# # Print the final plot
+# print(final_plot)
+
+
+```

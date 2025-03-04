@@ -1,5 +1,5 @@
 ---
-title: 'Figures for MS: Spatiotemporal variation in mountain stream metabolism and nitrogen cycling across contrasting flow regimes '
+title: 'Nitrogen dynamics for MS draft: Spatiotemporal variation in mountain stream metabolism and nitrogen cycling across contrasting flow regimes '
 author: "Kelly Loria"
 date: "`r Sys.Date()`"
 output:
@@ -75,71 +75,214 @@ water_year_patterns <- c("wave","weave","stripe","circle", "stripe", "circle")
 
 # Create a sequence of dates
 date_seq <- seq(from = as.Date("2021-03-20"), to = as.Date("2024-10-10"), by = "day")
-
-# Convert the sequence to a dataframe
-date_df <- data.frame(date = date_seq)
-date_df$site <- "BWL"
-date_df$catch <- "BW"
-date_df1 <- data.frame(date = date_seq)
-date_df1$site <- "GBL"
-date_df1$catch <- "GB"
-date_df2 <- data.frame(date = date_seq)
-date_df2$site <- "GBU"
-date_df2$catch <- "GB"
-date_df3 <- data.frame(date = date_seq)
-date_df3$site <- "BWU"
-date_df3$catch <- "BW"
-
-date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
-
-### fxns:
-## Fxn for water year:
-water_year <- function(data) {
-  # Ensure the `date` column exists
-  if (!"date" %in% names(data)) {
-    stop("The dataframe must contain a column named 'date'.")
-  }
-  
-  # Convert the `date` column to Date format (if not already)
-  data$date <- as.Date(data$date)
-  
-  # Add the water_year column
-  data$water_year <- with(data, {
-    year <- as.numeric(format(date, "%Y"))
-    month <- as.numeric(format(date, "%m"))
-    ifelse(month >= 10, year + 1, year)
-  })
-  
-  return(data)
-}
-## Function to perform ANOVA and post-hoc test within each site
-comparisons <- list(
-  c("2021", "2022"),
-  c("2021", "2023"),
-  c("2022", "2023"),
-  c("2023", "2024")
-)
 ```
 
+```{r, warning=F, size = 'small', echo=FALSE, include=FALSE}
+
+# # Convert the sequence to a dataframe
+# date_df <- data.frame(date = date_seq)
+# date_df$site <- "BWL"
+# date_df$catch <- "BW"
+# date_df1 <- data.frame(date = date_seq)
+# date_df1$site <- "GBL"
+# date_df1$catch <- "GB"
+# date_df2 <- data.frame(date = date_seq)
+# date_df2$site <- "GBU"
+# date_df2$catch <- "GB"
+# date_df3 <- data.frame(date = date_seq)
+# date_df3$site <- "BWU"
+# date_df3$catch <- "BW"
+# 
+# date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
+# 
+# ### fxns:
+# ## Fxn for water year:
+# water_year <- function(data) {
+#   # Ensure the `date` column exists
+#   if (!"date" %in% names(data)) {
+#     stop("The dataframe must contain a column named 'date'.")
+#   }
+#   
+#   # Convert the `date` column to Date format (if not already)
+#   data$date <- as.Date(data$date)
+#   
+#   # Add the water_year column
+#   data$water_year <- with(data, {
+#     year <- as.numeric(format(date, "%Y"))
+#     month <- as.numeric(format(date, "%m"))
+#     ifelse(month >= 10, year + 1, year)
+#   })
+#   
+#   return(data)
+# }
+# ## Function to perform ANOVA and post-hoc test within each site
+# comparisons <- list(
+#   c("2021", "2022"),
+#   c("2021", "2023"),
+#   c("2022", "2023"),
+#   c("2023", "2024")
+# )
+# ```
+# 
+# ```{r, warning=F, size = 'small', echo=FALSE, include=F}
+# ##==========================
+# library(dataRetrieval)
+# ## Bring in Streamflow
+# siteNo_BW <- "10336660"
+# 
+# # Define the parameter codes for flow and stage
+# pCode_flow <- "00060"
+# pCode_stage <- "00065"
+# pCode_temp <- "00010"
+# 
+# # Set the start date to "1980-01-01" and end date to today (current date)
+# start.date <- "2021-04-20"
+# end.date <- "2024-08-10"
+# 
+# HRflow_data_BW <- readNWISuv(
+#   siteNumbers = siteNo_BW,
+#   parameterCd = c(pCode_temp, pCode_flow, pCode_stage),
+#   startDate = start.date,
+#   endDate = end.date
+# ) %>%
+#   select(
+#     datetime = "dateTime",
+#     dischargeCFS = "X_00060_00000",
+#     wtr_USGS = "X_.AquaTroll._00010_00000",
+#     stageF = "X_00065_00000"
+#   ) %>%
+#   mutate(datetime = as.POSIXct(datetime, tz = "UTC") %>% 
+#            with_tz("America/Los_Angeles")) # Convert to Pacific Time
+# 
+# ### mutate for SI units: 
+# HRflow_BWL <- HRflow_data_BW %>%
+#   mutate(
+#     dischargeCMS= c(dischargeCFS*0.0283168),
+#     scale_Q= c((dischargeCFS*0.0283168)/29.00787),
+#     stage_m= c(stageF*0.3048),
+#     adjusted_dischargeCMS = c(dischargeCMS * 0.647),
+#     adjusted_depth =  c(stage_m * 0.233),
+#     site="BWL"
+#   ) 
+# 
+# HRflow_BWU <- HRflow_data_BW %>%
+#   mutate(
+#     dischargeCMS= c(dischargeCFS*0.0283168),
+#     scale_Q= c((dischargeCFS*0.0283168)/29.00787),
+#     stage_m= c(stageF*0.3048),
+#     adjusted_dischargeCMS = c(dischargeCMS * 0.444),
+#     adjusted_depth =  c(stage_m * 0.503),
+#     site="BWU") 
+# 
+# 
+# # depth slope 0.233
+# 
+# 
+# ##==========================
+# ## Bring in Streamflow
+# siteNo_GB <- "10336730" #siteNo_BW <- "10336660"
+# 
+# # Define the parameter codes for flow and stage
+# pCode_flow <- "00060"
+# pCode_stage <- "00065"
+# pCode_temp <-"00010"
+# 
+# 
+# # Set the start date to "1980-01-01" and end date to today (current date)
+# start.date <- "2021-03-11"
+# end.date <- "2024-10-16"
+# 
+# HRflow_data_GB <- readNWISuv(
+#   siteNumbers = siteNo_GB,
+#   parameterCd = c(pCode_temp, pCode_flow, pCode_stage),
+#   startDate = start.date,
+#   endDate = end.date
+# ) %>%
+#   select(
+#     datetime = "dateTime",
+#     dischargeCFS = "X_00060_00000",
+#     wtr_USGS = "X_00010_00000",
+#     stageF = "X_00065_00000"
+#   ) %>%
+#   mutate(datetime = as.POSIXct(datetime, tz = "UTC") %>% 
+#            with_tz("America/Los_Angeles")) # Convert to Pacific Time
+# 
+# ### mutate for SI units: 
+# HRflow_GBL <- HRflow_data_GB %>%
+#   mutate(
+#     dischargeCMS= c(dischargeCFS*0.0283168),
+#     scale_Q= c((dischargeCFS*0.0283168)/10.64485),
+#     stage_m= c(stageF*0.3048),
+#     adjusted_dischargeCMS = c(dischargeCMS * 0.812),
+#     adjusted_depth =  c(stage_m * 0.979),
+#      site="GBL") 
+# 
+# 
+# ### mutate for SI units: 
+# HRflow_GBU <- HRflow_data_GB %>%
+#   mutate(
+#     dischargeCMS= c(dischargeCFS*0.0283168),
+#     scale_Q= c((dischargeCFS*0.0283168)/10.64485),
+#     stage_m= c(stageF*0.3048),
+#     adjusted_dischargeCMS = c(dischargeCMS * 1.104),
+#     adjusted_depth =  c(stage_m * 0.357),
+#      site="GBU") 
+# 
+# Flow_df <- rbind(HRflow_BWL, HRflow_BWU, HRflow_GBL, HRflow_GBU)
+# 
+# flow_df<- Flow_df %>%
+#   mutate(date= as.Date(datetime))%>%
+#   group_by(site, date) %>%
+#   dplyr::select(!datetime)%>%
+#   summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
+#   mutate(Q_m = adjusted_dischargeCMS,
+#          depth_m = adjusted_depth)%>%
+#   dplyr::select(site, date, Q_m, depth_m)
+# 
+# summary(flow_df)
+
+
+# saveRDS(flow_df, file = "/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_flow_df.rds")
+
+```
 
 ```{r, warning=F, size = 'small', echo=FALSE, include=F}
 ### Read in all data
 ####
 date_datf <- water_year(date_datf)
 
-covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat.rds") %>%
+covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat_AFDM.rds") %>%
   dplyr::select("date", "Site","bulk.density","AFDM_mgg","AFDM_mgcm2", "Chla_ugL_Q", "Pheo_ugL_Q")
 summary(covariat_dat)
 
 covariat_dat <- date_datf %>%
   left_join(covariat_dat, by=c("date", "site"="Site"))
 
+flow_df <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_flow_df.rds")
+
+covariat_dat <- covariat_dat %>%
+    left_join(flow_df, by=c("date", "site"))
+
+
 bg_nuts <- readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
-  #mutate(date = as.Date(date, format="%m/%d/%y")) %>%
   filter(location=="stream") %>%
     mutate(NO3_mgL_dl = if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl))%>%
     mutate(NH4_mgL_dl=if_else(NH4_mgL_dl < 0.001, 0.001, NH4_mgL_dl))%>%
-    mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl))
+    mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl)) %>%
+  mutate(PO4_ugL_dl=if_else(DOC_mgL_dl < 0.25, 0.125, DOC_mgL_dl)) %>%
+  group_by(site, shore, date, depth, location, substrate) %>%
+  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+
+
+##### pivot wider 
+bg_nuts_wide <- bg_nuts %>%
+  dplyr::select(site, date, substrate, NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill) %>%
+  group_by(site, date,substrate) %>% 
+  summarise(across(c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), mean, na.rm = TRUE), .groups = "drop") %>% 
+  pivot_wider(names_from = substrate, values_from = c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), names_sep = "_")
+
+######
+
 
 WQ_dat <- read.csv("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/Stream_Lake_YSI_WaterQuality.csv")%>%
   mutate(date = as.Date(date, format="%m/%d/%y")) %>%
@@ -148,7 +291,9 @@ WQ_dat <- read.csv("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/Wa
   dplyr::summarise(pH=mean(pH, na.rm=T))
 
 covariat_datq <- covariat_dat%>%
-  left_join(bg_nuts[ , c("site", "substrate", "date", "NO3_mgL_dl", "NH4_mgL_dl", "PO4_ugL_dl", "DOC_mgL_dl")], by=c("date", "site"))
+  left_join(bg_nuts_wide[ , c("site", "date", "NO3_mgL_dl_sw", "NO3_mgL_dl_pw", "NH4_mgL_dl_sw", 
+                              "NH4_mgL_dl_pw", "PO4_ugL_dl_sw","PO4_ugL_dl_pw", "DOC_mgL_dl_sw",
+                              "DOC_mgL_dl_pw", "pH_infill_sw",  "pH_infill_pw")], by=c("date", "site"))
 
 covariat_datq <- covariat_datq%>%
   left_join(WQ_dat,  by=c("date", "site"))
@@ -192,47 +337,23 @@ covariat_datq <- covariat_datq%>%
 
 ### 
 ## Bring in morph data : 
-## BWL  
-BWL_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWL_DO_flag_sat_light_v2.rds") %>%
-  dplyr::select(datetime, w, v, depth) %>%
-  mutate(site="BWL")
-summary(BWL_datM) 
+morph_df <- read.csv("/Users/kellyloria/Documents/UNR/MSMmetab/stream_morphology_core.csv")%>%
+  filter(quality =="trust") %>%
+    mutate(datetime = as.POSIXct(datetime, format="%Y-%m-%dT%H:%M:%SZ"),
+           date=as.Date(datetime)) %>%
+  rename(site="Site")
 
-## BWU 
-BWU_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWU_DO_flag_sat_light_v2.rds") %>%
-    dplyr::select(datetime, w, v, depth) %>%
-  mutate(site="BWU")
-summary(BWU_datM)
 
-## GBL 
-GBL_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBL_DO_flag_sat_light_v2.rds") %>%
-    dplyr::select(datetime, w, v, depth) %>%
-  mutate(site="GBL")
-summary(GBL_datM)
-
-## GBU 
-GBU_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBU_DO_flag_sat_light_v2.rds") %>%
-    dplyr::select(datetime, w, v, depth) %>%
-  mutate(site="GBU")
-summary(GBU_datM)
-
-Morph_dat <- rbind(BWL_datM, BWU_datM, GBL_datM, GBU_datM)
-
-Morph_dat_day <- Morph_dat%>%
-  mutate(date =as.Date(datetime))%>%
+Morph_dat_day <- morph_df%>%
   dplyr::group_by(site, date) %>%
   dplyr::summarise(
-    v_m=mean(v, na.rm=T),
-    v_sd=sd(v, na.rm=T),
+    v_m=mean(v_estimation, na.rm=T),
     w_m=mean(w, na.rm=T),
-    w_sd=sd(w, na.rm=T),
-    depth_m=mean(depth, na.rm=T),
-    depth_sd=sd(depth, na.rm=T))
+    depth_measure=mean(z, na.rm=T))
 
 
 covariat_datq <- covariat_datq%>%
   left_join(Morph_dat_day, by=c("date", "site"))
-
 
 #### DO ###
 ## BWL  
@@ -264,9 +385,7 @@ miniDOT_dat_day <- miniDOT_dat%>%
     do.obs_m=mean(DO.obs, na.rm=T),
     do.obs_sd=sd(DO.obs, na.rm=T),
     wtr_m=mean(temp.water, na.rm=T),
-    wtr_sd=sd(temp.water, na.rm=T),
-    Q_m= mean(discharge, na.rm=T),
-    Q_sd= sd(discharge, na.rm=T))
+    wtr_sd=sd(temp.water, na.rm=T))
 
 covariat_datq <- covariat_datq%>%
   left_join(miniDOT_dat_day, by=c("date", "site"))
@@ -362,8 +481,28 @@ covariat_datq <- covariat_datq%>%
   left_join(metab_dat, by=c("date", "site", "catch"))
 ```
 
-Pause to make a column for biomass to chla ratios And also make biomass
-in in micro grams to more comparable to chl-a
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+# Define the columns of interest
+cols_to_check <- c("bulk.density", "AFDM_mgg", "AFDM_mgcm2", "Chla_ugL_Q", "Pheo_ugL_Q",
+                   "Q_m", "depth_m", "NO3_mgL_dl_sw", "NO3_mgL_dl_pw", "NH4_mgL_dl_sw", 
+                   "NH4_mgL_dl_pw", "PO4_ugL_dl_sw", "PO4_ugL_dl_pw", "DOC_mgL_dl_sw", 
+                   "DOC_mgL_dl_pw", "pH_infill_sw", "pH_infill_pw", "pH", "wt", "wt_sd", 
+                   "SPC_m", "SPC_sd", "v_m", "w_m", "depth_measure", "do.obs_m", "do.obs_sd", 
+                   "wtr_m", "wtr_sd", "method", "carboy_NaCl_g", "carboy_N_g", "liter_h2o", 
+                   "reach_length", "Uadd_ug_L_min", "Uadd_min_sd", "Uadd_min_sd.1", "sw_m", 
+                   "sw_sd", "vf", "vf.sd", "Vf_m_min", "vf_min_sd", "success", "GPP_mean", 
+                   "ER_mean", "NEP_daily_mean", "K600_daily_mean", "GPP_2.5pct", "GPP_97.5pct", 
+                   "ER_2.5pct", "ER_97.5pct", "K600_daily_2.5pct", "K600_daily_predlog_97.5pct", 
+                   "GPP_daily_Rhat", "ER_daily_Rhat", "K600_daily_Rhat")
+
+# Filter out rows where all selected columns are NA
+filtered_data <- covariat_datq %>%
+  filter(rowSums(!is.na(select(., all_of(cols_to_check)))) > 0)
+
+# Check the structure of the filtered dataset
+str(filtered_data)
+```
+
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 
@@ -376,8 +515,6 @@ covariat_datq$Biom_Chla <- (covariat_datq$AFDM_ugcm2)/(covariat_datq$Chla_ugL_Q)
 summary(covariat_datq)
 
 ```
-
-
 
 #### Calculate nitrogen demand:
 
@@ -406,65 +543,146 @@ covariat_ndemand <- covariat_datq %>%
   dplyr::select(site, date, Ndemand)
 ```
 
+
+### Quality check on supply calculations: 
+(1) How many missing data points is it and how many consecutive points are you replacing? 
+
+A: Probably too many. And we should swap the NA infill 
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=6, fig.height=4}
+morph_counts <- covariat_datq %>%
+  group_by(site) %>%
+  summarise(
+    w_m_count = sum(!is.na(w_m)), 
+    v_m_count = sum(!is.na(v_m))
+  )
+
+morph_counts
+```
+
+
+##### better way to infill width and velocites to get at reach length:
+
+na.approx, and using Q as "Variables to be used for interpolation as in"
+
+```{r, warning=F, size = 'small', echo=T, include=T,fig.width=6, fig.height=4}
+# covariat_datqI <- covariat_datq %>%
+#   group_by(site) %>%
+#   arrange(date) %>%
+#   mutate(
+#     Q_m = na.approx(Q_m, na.rm = FALSE),
+#     w_m_apr = approx(depth_m, w_m, xout = Q_m, rule = 2, ties = mean)$y,
+#     v_m_apr = approx(Q_m, v_m, xout = Q_m, rule = 2, ties = mean)$y
+#   ) %>%
+#   ungroup() 
+
+covariat_datqI <- covariat_datq %>%
+  group_by(site) %>%
+  arrange(date) %>%
+  mutate(
+    # Fit a linear model for w_m ~ Q_m using non-missing values
+    w_m_apr = ifelse(is.na(w_m), predict(lm(w_m ~ depth_m, data = cur_data(), na.action = na.omit), newdata = cur_data()), w_m),
+    v_m_apr = ifelse(is.na(v_m), predict(lm(v_m ~ Q_m, data = cur_data(), na.action = na.omit), newdata = cur_data()), v_m)
+  ) %>%
+  ungroup()
+
+covariat_datqI <- covariat_datqI %>%
+  group_by(site) %>%
+  arrange(date) %>%  # Ensure chronological order
+   mutate( ## 17 NAs
+    w_m_apr = ifelse(is.na(w_m_apr),
+                  rollapplyr(w_m_apr, width = 15, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE),
+                  w_m_apr),
+    v_m_apr = ifelse(is.na(v_m_apr),
+                  rollapplyr(v_m_apr, width = 15, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE),
+                  v_m_apr))
+```
+
+
+```{r, warning=F, size = 'small', echo=F,include=T, fig.width=9, fig.height=10}
+
+TS_plot_w <- ggplot(covariat_datqI, aes(x = date, y = w_m_apr, color=site, shape =site)) +
+  geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
+  geom_point(size = 2, alpha = 0.7) +
+  geom_point(aes(x = date, y = w_m), color="black") +
+  scale_color_manual(values = siteC_colors) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) + theme_classic() +
+  facet_grid(site~.)
+
+TS_plot_v <- ggplot(covariat_datqI, aes(x = date, y = v_m_apr, color=site, shape =site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  geom_point(size = 2, alpha = 0.7) +
+    geom_point(aes(x = date, y = v_m), color="black") +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+    scale_color_manual(values = siteC_colors) +
+  theme_classic() +facet_grid(site~.)
+
+n_s_grid <- ggarrange(
+  TS_plot_w,
+  TS_plot_v,
+  labels = c("a", "b"),
+  ncol = 1, nrow = 2,
+  label.x = 0.95,  # Move label to the right
+  label.y = 1,     # Keep label at the top
+  hjust = 1,       # Right-align the label
+  vjust = 1        # Top-align the label
+)
+
+n_s_grid
+
+```
+Where the black points are the survey measures of width or velocity.
+
+
 #### Calculate nitrogen supply:
 
 ```{r, warning=F, size = 'small', echo=T, include=T,fig.width=6, fig.height=4}
-covariat_nsupply <- covariat_datq %>%
+covariat_nsupply <- covariat_datqI %>%
   dplyr::select(site, catch, date, water_year,
                 reach_length,
-                v_m,w_m, Q_m, substrate, K600_daily_mean,
-                NO3_mgL_dl,NH4_mgL_dl, PO4_ugL_dl)%>%
-  filter(substrate=="sw") %>% # select just surface water samples
-  group_by(site) %>% 
-  arrange(date) %>%  # Ensure chronological order
-  mutate( ## 17 NAs
-    v_mi = ifelse(is.na(v_m), 
-                  rollapplyr(v_m, width = 3, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE), 
-                  v_m),
-    w_mi = ifelse(is.na(w_m), 
-                  rollapplyr(w_m, width = 3, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE), 
-                  w_m)
-  ) %>%
-  # Carry forward any remaining NAs
-  mutate(
-    v_mi = zoo::na.locf(v_mi, na.rm = FALSE),
-    v_mi = zoo::na.locf(v_mi, fromLast = TRUE, na.rm = FALSE),
-    w_mi = zoo::na.locf(w_mi, na.rm = FALSE),
-    w_mi = zoo::na.locf(w_mi, fromLast = TRUE, na.rm = FALSE)
-  ) %>%
-  # If there are still missing values, replace them with the site mean
-  mutate(
-    v_mi = ifelse(is.na(v_mi), mean(v_m, na.rm = TRUE), v_mi),
-    w_mi = ifelse(is.na(w_mi), mean(w_m, na.rm = TRUE), w_mi)
-  ) %>%
+                v_m_apr,w_m_apr, Q_m, K600_daily_mean,
+                NO3_mgL_dl_sw, NH4_mgL_dl_sw, PO4_ugL_dl_sw)%>%
+  # group_by(site) %>% 
+  # arrange(date) %>%  # Ensure chronological order
+  # # mutate( ## 17 NAs
+  #   v_mi = ifelse(is.na(v_m), 
+  #                 rollapplyr(v_m, width = 3, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE), 
+  #                 v_m),
+  #   w_mi = ifelse(is.na(w_m), 
+  #                 rollapplyr(w_m, width = 3, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE), 
+  #                 w_m)
+  # ) %>%
+  # # Carry forward any remaining NAs
+  # # mutate(
+  #   v_mi = zoo::na.locf(v_mi, na.rm = FALSE),
+  #   v_mi = zoo::na.locf(v_mi, fromLast = TRUE, na.rm = FALSE),
+  #   w_mi = zoo::na.locf(w_mi, na.rm = FALSE),
+  #   w_mi = zoo::na.locf(w_mi, fromLast = TRUE, na.rm = FALSE)
+  # ) %>%
+  # # If there are still missing values, replace them with the site mean
+  # mutate(
+  #   v_mi = ifelse(is.na(v_mi), mean(v_m, na.rm = TRUE), v_mi),
+  #   w_mi = ifelse(is.na(w_mi), mean(w_m, na.rm = TRUE), w_mi)
+  # ) %>%
+  # # mean measured estimates o k600
   mutate(
     K600_daily_mean = case_when(
-      is.na(K600_daily_mean) & site == "BWL" ~ 22, # mean measured estimates o k600
+      is.na(K600_daily_mean) & site == "BWL" ~ 22, 
       is.na(K600_daily_mean) & site == "BWU" ~ 16,
       is.na(K600_daily_mean) & site == "GBU" ~ 32,
       is.na(K600_daily_mean) & site == "GBL" ~ 25,
       TRUE ~ K600_daily_mean
     )
   ) %>%
-  
-  mutate(
-    reach_length = case_when(
-      is.na(reach_length) & site == "BWL" ~ 125,
-      is.na(reach_length) & site == "BWU" ~ 100,
-      is.na(reach_length) & site == "GBU" ~ 90,
-      is.na(reach_length) & site == "GBL" ~ 90,
-      TRUE ~ reach_length
-    )
-  ) %>%
   mutate(
   Q_Ls = Q_m * 1000, # flow from csm to Ls
   # calculate reach length in m
-   reachL = c(((v_mi*100)*w_mi*86.4)/K600_daily_mean),
+   reachL = c((v_m_apr*w_m_apr*8640)/K600_daily_mean), # seconds to days
    # Calculate no3 supply 
-  NO3_supply = c(((86400*Q_Ls*(NO3_mgL_dl/1000))/(w_mi*reachL))),
+  NO3_supply = c(((86400*Q_Ls*(NO3_mgL_dl_sw/1000))/(w_m_apr*reachL))),
    # Calculate nh3 supply 
-  NH4_supply = c(((86400*Q_Ls*(NH4_mgL_dl/1000))/(w_mi*reachL))), ## unit should be g N m-2 d-1
-  PO4_supply = c(((86400*Q_Ls*(PO4_ugL_dl/1e-6))/(w_mi*reachL))) ## unit should be g N m-2 d-1
+  NH4_supply = c(((86400*Q_Ls*(NH4_mgL_dl_sw/1000))/(w_m_apr*reachL))), ## unit should be g N m-2 d-1
+  PO4_supply = c(((86400*Q_Ls*(PO4_ugL_dl_sw/1e-6))/(w_m_apr*reachL))) ## unit should be g N m-2 d-1
    )  %>%
   dplyr::select(site, date, reachL, reach_length, Q_Ls, NO3_supply, NH4_supply, PO4_supply)
 
@@ -472,7 +690,68 @@ covariat_nsupply <- covariat_datq %>%
 
 
 
-#### Calculate nitrogen supply:
+#### As a follow up... Which type of reach length works best?
+
+Covino et al picked a static length - 
+
+"...Our experimental stream reach was near the Wooden Bridge in the Korstian Division and stretched 175 and 200 m up- and downstream, respectively.. We used a stream length of 100 m (King et al. 2014). Ideal estimates of supply to the stream bed would exceed the stream length over which the water column mixes vertically and, therefore, solutes would be available to the bed, but we lacked hydrodynamic information to estimate this length..." 
+
+Here I chose to estimate instead estimate reach length based off Laurel's advice for using the gas exchange estimates to get estimate theoretic reach length. Where reach length = velocity (m s^-1) * width (in m) / gas exchange (m day^-1). 
+But the empirical RL is calculated across the entire non- trimmed time sieries of flow so does have some outlines at peak flows. Often when we weren't sampling and also where we didn't model metabolism).
+
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=10, fig.height=6}
+# from dilution 
+RL_DG_plot<- ggplot(covariat_nsupply%>%mutate(year=year(date)), aes(x = reach_length, fill = factor(year))) +
+  geom_histogram(bins = 15, alpha = 0.7, color = "black") +  # Adjust bins as needed
+  scale_fill_viridis_d(name = "Year") +  # Use viridis colors for distinction
+  theme_classic() +
+  xlab("Reach Length - from dilution") +
+  ylab("Count") +facet_grid(.~site)
+
+summary(covariat_nsupply$reach_length)
+
+
+RL_EMP_plot<- ggplot(covariat_nsupply%>%mutate(year=year(date)), aes(x = reachL, fill = factor(year))) +
+  geom_histogram(bins = 15, alpha = 0.7, color = "black") +  # Adjust bins as needed
+  scale_fill_viridis_d(name = "Year") +  # Use viridis colors for distinction
+  theme_classic() +
+  geom_vline(xintercept = 500, linetype = "dotted", color = "grey", size = 1) +  # Vertical line at 250
+  xlab("Reach Length - empirical") +
+  ylab("Count") +facet_grid(.~site)
+
+summary(covariat_nsupply$reachL)
+
+
+RL_grid <- ggarrange(
+  RL_DG_plot,
+  RL_EMP_plot,
+  labels = c("a", "b"),
+  ncol = 1, nrow = 2,
+  label.x = 0.95,  # Move label to the right
+  label.y = 1,     # Keep label at the top
+  hjust = 1,       # Right-align the label
+  vjust = 1        # Top-align the label
+)
+
+RL_grid
+```
+
+The vertical dotted line is 500 m to help compare ranges with the large range of unrealistic RL at high flows.
+
+Here's the empirical RL trimmed to just show distribution under of RL under 1000 
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=10, fig.height=3}
+# from dilution 
+RL_EMP_plot<- ggplot(covariat_nsupply%>%mutate(year=year(date))%>%filter(reachL<1000), aes(x = reachL, fill = factor(year))) +
+  geom_histogram(bins = 15, alpha = 0.7, color = "black") +  # Adjust bins as needed
+  scale_fill_viridis_d(name = "Year") +  # Use viridis colors for distinction
+  theme_classic() +
+  geom_vline(xintercept = 500, linetype = "dotted", color = "grey", size = 1) +  # Vertical line at 250
+  xlab("Reach Length - empirical") +
+  ylab("Count") +facet_grid(.~site)
+RL_EMP_plot
+```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 ndyn <- covariat_datq %>%
@@ -483,37 +762,30 @@ summary(ndyn)
 
 ```
 
-### up to downstream differences
+##### Plots of Ratios of NH4+- N supply to demand, ratios NO3-- N supply to demand
 
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-ndyn <- covariat_datq %>%
-  left_join(covariat_nsupply, by=c("site", "date"))%>%
-  left_join(covariat_ndemand, by=c ("site", "date")) 
-
-summary(ndyn)
-
-```
-
-
-### Plots of Ratios of NH4+- N supply to demand, ratios NO3-- N supply to demand
-
-
+Old figure 4 with gas exchange filled in based on measurements and no longer an NA when metabolism model failed to estimate that parameter on the same day as the chemistry sample... to have way more data:
 
 ```{r, warning=F, size = 'small', echo=F, include=F}
-
-
 covariat_NS_ND <- ndyn %>%
   mutate(jday = yday(date)) %>%
-  dplyr::select(date, jday, Q_m, site, catch, water_year, Ndemand, NO3_supply, NH4_supply) %>%
+  dplyr::select(date, jday, Q_m, w_m, site, catch, water_year, Ndemand, NO3_supply, NH4_supply) %>%
   mutate(
     NO3_SupDem = NO3_supply / Ndemand,
-    NH4_SupDem = NH4_supply / Ndemand
+    NH4_SupDem = NH4_supply / Ndemand,
+    N_SupDem = (NH4_supply + NO3_supply) / Ndemand
   ) %>%
-  distinct(date, site, .keep_all = TRUE)  
+  distinct(date, site, .keep_all = TRUE)  %>%
+    mutate(WY_lab = case_when(
+    water_year %in% c(2021, 2022) ~ "dry",
+    water_year %in% c(2023) ~ "wet",
+    water_year %in% c(2024) ~ "normal",
+    TRUE ~ NA_character_  
+  ))
 
 
 ## adjust the demand y axis to be from 0 to 1 
-N_ratio_plots <- ggplot(covariat_NS_ND, aes(x = log(NO3_supply+1), y = Ndemand, color = jday, shape=site)) +
+N_ratio_plots <- ggplot(covariat_NS_ND, aes(x = log(NO3_supply+1), y = log(Ndemand+1), color = jday, shape=site)) +
   geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
     geom_point( aes(x = log(NH4_supply+1), y = Ndemand, color = jday),
                 size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
@@ -521,10 +793,13 @@ N_ratio_plots <- ggplot(covariat_NS_ND, aes(x = log(NO3_supply+1), y = Ndemand, 
     scale_color_viridis_c(option = "viridis",  name = "Day of year") +
       scale_shape_manual(values = c(15,0,17,2)) +
   xlim(0,1) +
-  ylim(0, 1) +
-   ylab(expression(Nitrogen~demand~(g~N~m^-2~d^-1))) +
+ # ylim(0, 1) +
+   ylab(expression(log(Nitrogen~demand+1)~(g~N~m^-2~d^-1))) +
      xlab(expression(log(Nitrogen~supply+1)~(g~N~m^-2~d^-1))) +
   theme_classic()
+
+high_NO3_sup_threshold <- 2.5 
+high_NH4_sup_threshold <- 1.5 
 
 
 NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(NO3_supply<60), aes(y = log(NO3_supply+1), x = jday, color = jday, shape=site)) +
@@ -533,6 +808,8 @@ NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(NO3_supply<60), aes(y = log(NO3
                 size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
     scale_color_viridis_c(option = "viridis", name = "Day of year") +  # Use _c for continuous data
   xlim(15,360) +
+ # geom_hline(yintercept = log(high_NO3_sup_threshold), linetype = "dashed", color = "grey25") +
+#    geom_hline(yintercept = log(high_NH4_sup_threshold), linetype = "dotted", color = "grey25") +
   #  ylim(0,5) +
    xlab(NULL) +
      ylab(expression(log(Supply+1)~(g~N~m^-2~d^-1))) +
@@ -540,12 +817,15 @@ NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(NO3_supply<60), aes(y = log(NO3
   scale_shape_manual(values = c(15,0,17,2)) +
     theme(legend.position = "none")  # Remove legend
 
+# Define threshold for high NO3 demand (above 3rd quartile)
+high_Ndemand_threshold <- 0.075
 
 N_demand_plot1 <- ggplot(covariat_NS_ND, aes(y = (Ndemand), x = jday, color = jday, shape = site)) +
   geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.8)) +
   scale_color_viridis_c(option = "viridis", name = "Day of year") +  # Use _c for continuous data
   xlab("Day of year") +
   xlim(15, 360) +
+ # geom_hline(yintercept = high_Ndemand_threshold, linetype = "dashed", color = "grey25") +
   scale_shape_manual(values = c(15, 0, 17, 2)) +
   ylab(expression(Demand~~(g~N~m^-2~d^-1))) +
   theme_classic() +
@@ -555,9 +835,7 @@ N_demand_plot1
 
 ```
 
-
-
-```{r, warning=F, size = 'small', echo=T, fig.width=8, fig.height=4}
+```{r, warning=F, size = 'small', echo=F,include=T, fig.width=8, fig.height=6}
 
 n_s_grid <- ggarrange(
   NO3_supp_plots,
@@ -584,37 +862,28 @@ Ndyn_grid
 
 ```
 
+The dashed line is high N demand:
+high_NO3_sup_threshold <- 2.5 
 
+The dashed line is high NO3 supply:
+high_NO3_sup_threshold <- 2.5 
 
+Dotted line is high NH4 supply:
+high_NH4_sup_threshold <- 1.5 
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 # ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nsupply_grid_CH1_v2.png", plot = Ndyn_grid, width = 9.25, height = 5.5, units = "in")
 
 ```
 
-#### Looking at the upper and lower reach differences:
+### Nitrogen Uptake dynamics from TASCC
 
-
-
-#### Consider the units 
-
- - Areal max uptake -  Ut - ug / m2 min
- 
- - Uptake velocity - Vf - m / min
- 
- - Uptake length - Sw - m 
- 
- - Supply and demand is in g N m-2 d-1
- 
-
-```{r, warning=F, size = 'small', echo=F, include=T,fig.width=6, fig.height=4}
-
+```{r, warning=F, size = 'small', echo=T, include=T,fig.width=6, fig.height=4}
 n_df <- n_up%>%
   filter(success=="yes") %>%
   mutate(
          Uadd_g_m2_min = c(Uadd_ug_L_min/1000000),
          Uadd_g_m2_D = c(Uadd_g_m2_min*1440)) 
-
 
 uptake <- n_df %>%
   pivot_wider(
@@ -625,48 +894,344 @@ uptake <- n_df %>%
 
 summary(uptake)
 
+uptake_df <-  covariat_NS_ND%>%
+  full_join(uptake)
+
 ```
 
+### Linking ecosystem funtion and biogeochemical dynamics:
+
+We found that autotrophic production (and so nitrogen demand) is
+suppressed in wetter years and this matters because the NH4 supply
+increases also increases in wetter years.
+
+-   We would like to estimate what amount of the nitrogen supply can be
+    could be transformed via uptake in a stream - possibly at specific
+    stream reach?
+    
+      -  Fractional uptake efficiencies for N at the lower station as downstream export?
+      
+      -  Difference in fractional uptake efficiencies between reaches for overall stream processing?  
+
+-   Even though supply increases, we would expect biological processes
+    like uptake to decrease. So what percent of the N supply is either
+    processes or exported in wet verse dry years?
+
+##### Consider the units
+
+-   Areal max uptake - Ut - ug / m2 min -\> we converted to g m2 day
+
+-   Uptake velocity - Vf - m / min
+
+-   Uptake length - Sw - m
+
+-   Supply and demand is in g N m-2 d-1
 
 
-```{r, warning=F, size = 'small', echo=T, include=T,fig.width=6, fig.height=4}
+### New analysis of Nitrogen dynamics: 
 
-uptake_df <- covariat_NS_ND %>%
-    full_join(uptake, by=c ("site", "date"))
+#### Methods for evaluating nitrogen cycling
+
+According to [Covino et al.
+2018](https://www.journals.uchicago.edu/doi/abs/10.1086/699202?casa_token=z4FRLNRrBH8AAAAA:g2dwDEk5ct5-NxSqV0w2PILcK9ArSQhBnEeVBmOHiEHU_RMeWBRu4RWAzJG6ilh7wSeD30YDPkyH&casa_token=_yfAVNMW2ZQAAAAA:LH4hXzHGlRGjdsnCKp28IBUCho9RqquzLdge8TkzP3UNGQdvoI8SqtoxxyHw67tIEtm_4uM6CLmY)
+:
+
+-   Supply (S): The available nitrogen in the system (in g N/m²/day).
+
+-   Demand (D): The total biological nitrogen demand (in g N/m²/day).
+
+-   Uptake rate (U): The amount of nitrogen removed from the water
+    column via assimilation, denitrification, or other biological
+    processes.
+
+#### U = (D * S) / (D + S)
+
+- When demand (D) is much greater than supply (S): Almost all available nitrogen is taken up, so uptake approaches supply (U ≈ S)
+
+- When supply (S) is much greater than demand (D): Uptake is limited by biological demand, and uptake approaches demand (U ≈ D)
+
+
+```{r, warning=F, size = 'small', echo=F, include=F,fig.width=9, fig.height=6}
+uptake_dyn <- uptake_df %>%
+  group_by(site, date) %>%
+  mutate(
+    jday = yday(date),
+    U_NO3_calc = c((Ndemand*NO3_supply)/(Ndemand+NO3_supply)),
+    U_NH4_calc = c((Ndemand*NH4_supply)/(Ndemand+NH4_supply)))
   
 
-# uptake_df <- uptake_df %>%
-#   distinct(site, date, .keep_all = TRUE)
+summary(uptake_dyn)
+    
+hist(uptake_dyn$U_NO3_calc)
+hist(uptake_dyn$U_NH4_calc)
+```
 
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
+no3_S_plot <- ggplot(uptake_dyn, aes(x = NO3_supply, y = U_NO3_calc, color = site, shape = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1)) +
+  #scale_color_viridis_c(option = "viridis", name = "Day of year") + 
+      scale_color_manual(values = siteC_colors) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +
+  xlim(0, 0.35) +
+  theme_classic() +
+  xlab(expression(N~supply~(g~m^-2~d^-1))) +
+  ylab(expression(NO[3]~U[calc]~(g~m^-2~d^-1)))
+
+
+
+no3_D_plot <-ggplot(uptake_dyn, aes(x = Ndemand, y = U_NO3_calc, color = site, shape = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1)) +
+ # scale_color_viridis_c(option = "viridis", name = "Day of year") + 
+    scale_color_manual(values = siteC_colors) +
+    xlim(0, 0.45) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +theme_classic() +
+  xlab(expression(N~demand~(g~m^-2~d^-1))) +
+   ylab(expression(NO[3]~U[calc]~(g~m^-2~d^-1)))
+
+
+nh4_S_plot <-ggplot(uptake_dyn, aes(x = NH4_supply, y = U_NH4_calc,color = site, shape = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1)) +
+  #scale_color_viridis_c(option = "viridis", name = "Day of year") +
+      xlim(0, 0.150) +
+      scale_color_manual(values = siteC_colors) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +theme_classic() +
+  xlab(expression(N~supply~(g~m^-2~d^-1))) +
+   ylab(expression(NH[4]~U[calc]~(g~m^-2~d^-1)))
+
+
+nh4_D_plot <-ggplot(uptake_dyn, aes(x = Ndemand, y = U_NH4_calc,color = site, shape = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1)) +
+  #scale_color_viridis_c(option = "viridis", name = "Day of year") + 
+      scale_color_manual(values = siteC_colors) +
+  scale_shape_manual(values = c(15, 0, 17, 2)) +theme_classic() +
+  xlab(expression(N~demand~(g~m^-2~d^-1))) +
+      xlim(0, 0.45) +
+   ylab(expression(NH[4]~U[calc]~(g~m^-2~d^-1)))
+
+Ndyn_grid <- ggarrange(
+  no3_S_plot,
+  no3_D_plot,
+  nh4_S_plot,
+  nh4_D_plot,
+  ncol = 2, nrow = 2,
+  common.legend = TRUE, 
+  legend = "bottom")
+
+Ndyn_grid
+```
+
+Uptake is approaching demand (U ≈ D) indicating in general supply is greater than demand at each reach for N and something other than supply is limiting biologic uptake. 
+
+
+####  Identify High N Demand Events 2021-2023
+
+"high_Ndemand_threshold <- 0.037" 
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
+# Define threshold for high NO3 demand (above 3rd quartile)
+high_Ndemand_threshold <- 0.037
+
+# Filter data for high NO3 demand instances
+high_Ndemand_sites <- uptake_dyn %>%
+  filter(Ndemand > high_Ndemand_threshold) %>%
+  select(site, date, water_year, jday, Ndemand, NO3_supply, U_NO3_calc) %>%
+  arrange(desc(Ndemand))  # Sort by highest demand
+
+# Summary statistics of high-demand occurrences by site
+high_Ndemand_summary <- high_Ndemand_sites %>%
+  group_by(site) %>%
+  summarize(
+    count = n(),
+    mean_Ndemand = mean(Ndemand, na.rm = TRUE),
+    max_Ndemand = max(Ndemand, na.rm = TRUE),
+    earliest_date = min(date, na.rm = TRUE),
+    latest_date = max(date, na.rm = TRUE)
+  ) %>%
+  arrange(desc(count))
+
+# Print summary table
+print(high_Ndemand_summary)
+```
+
+
+####  Identify High NO3 supply Events 2021-2023
+
+"high_NO3_sup_threshold <- 0.039" 
+
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
+# Define threshold for high NO3 demand (above 3rd quartile)
+high_NO3_sup_threshold <- 0.039
+
+# Filter data for high NO3 demand instances
+high_NO3_sup_sites <- uptake_dyn %>%
+  filter(NO3_supply > high_NO3_sup_threshold) %>%
+  select(site, date, water_year, jday, Ndemand, NO3_supply, U_NO3_calc) %>%
+  arrange(desc(NO3_supply))  # Sort by highest demand
+
+# Summary statistics of high-demand occurrences by site
+high_NO3_supply_summary <- high_NO3_sup_sites %>%
+  group_by(site) %>%
+  summarize(
+    count = n(),
+    mean_NO3_supply = mean(NO3_supply, na.rm = TRUE),
+    max_NO3_supply = max(NO3_supply, na.rm = TRUE),
+    earliest_date = min(date, na.rm = TRUE),
+    latest_date = max(date, na.rm = TRUE)
+  ) %>%
+  arrange(desc(count))
+
+# Print summary table
+print(high_NO3_supply_summary)
 ```
 
 
 
-### plots for sequential dates
-color by day of year
+####  Identify High NH4 supply Events 2021-2023
 
-Generally looks higher in 2023
+"high_NO3_sup_threshold <- 0.018" 
+
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
+# Define threshold for high NO3 demand (above 3rd quartile)
+high_NH4_sup_threshold <- 0.018
 
-nh4_plot <-ggplot(uptake_df, aes(x = date, y = Uadd_g_m2_D_NH3,color = jday, shape = site)) +
+# Filter data for high NO3 demand instances
+high_NH4_sup_sites <- uptake_dyn %>%
+  filter(NH4_supply > high_NH4_sup_threshold) %>%
+  select(site, date, water_year, jday, Ndemand, NH4_supply, U_NH4_calc) %>%
+  arrange(desc(NH4_supply))  # Sort by highest demand
+
+# Summary statistics of high-demand occurrences by site
+high_NH4_supply_summary <- high_NH4_sup_sites %>%
+  group_by(site) %>%
+  summarize(
+    count = n(),
+    mean_NH4_supply = mean(NH4_supply, na.rm = TRUE),
+    max_NH4_supply = max(NH4_supply, na.rm = TRUE),
+    earliest_date = min(date, na.rm = TRUE),
+    latest_date = max(date, na.rm = TRUE)
+  ) %>%
+  arrange(desc(count))
+
+# Print summary table
+print(high_NH4_supply_summary)
+```
+
+
+
+```{r, warning=F, size = 'small', echo=F, include=F,fig.width=9, fig.height=6}
+# Plot high NO3 demand over time
+TS_high_N_demand<- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y = Ndemand, color = jday, shape = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +theme_classic() +
-  ylab(expression(NH[4]~U[t]~(g~m^-2~d^-1)))
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +
+  geom_point(size = 2, alpha = 0.7) +
+    scale_shape_manual(values = c(15, 0, 17, 2)) +
+  geom_hline(yintercept = high_Ndemand_threshold, linetype = "dashed", color = "grey25") +
+  labs(title = "N Demand Over Time",
+       x = "Date",
+       y = "N Demand (g N/m²/day)") +
+  theme_classic()
 
 
-
-no3_plot <-ggplot(uptake_df, aes(x = date, y = Uadd_g_m2_D_NO3, color = jday, shape = site)) +
+TS_high_NO3_sup <- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y = NO3_supply, color = jday, shape = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-    theme_classic()  +
-    ylab(expression(NO[3]~U[t]~(g~m^-2~d^-1)))
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +
+  geom_point(size = 2, alpha = 0.7) +
+    scale_shape_manual(values = c(15, 0, 17, 2)) +
+  geom_hline(yintercept = high_NO3_sup_threshold, linetype = "dashed", color = "grey25") +
+  labs(title = "NO3 Supply Over Time",
+       x = "Date",
+       y = "NO3 Supply (g N/m²/day)") +
+  theme_classic()
+
+
+TS_high_NH4_sup <- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y = NH4_supply, color = jday, shape = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +
+  geom_point(size = 2, alpha = 0.7) +
+    scale_shape_manual(values = c(15, 0, 17, 2)) +
+  geom_hline(yintercept = high_NH4_sup_threshold, linetype = "dashed", color = "grey25") +
+  labs(title = "NH4 Supply Over Time",
+       x = "Date",
+       y = "NH4 Supply (g N/m²/day)") +
+  theme_classic()
+```
+
+#### Plot high events 2021-2023
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=8}
 
 Ndyn_grid <- ggarrange(
-  nh4_plot,
-  no3_plot,
+  TS_high_N_demand,
+  TS_high_NO3_sup,
+  TS_high_NH4_sup,
+  ncol = 1, nrow = 3,
+  common.legend = TRUE, 
+  legend = "bottom")
+
+Ndyn_grid
+
+```
+
+
+#### Fractional uptake efficiency for each nitrogen type:
+
+A value close to 1 suggests high efficiency, meaning most of the supplied nitrogen was absorbed, while a value close to 0 suggests that most of the supplied nitrogen remained in the system
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=4}
+uptake_dyn2 <- uptake_dyn %>%
+  mutate(
+    frac_NO3_uptake = U_NO3_calc / NO3_supply,
+    frac_NH4_uptake = U_NH4_calc / NH4_supply,
+    frac_N_uptake = (U_NH4_calc + U_NO3_calc) / (NH4_supply +U_NO3_calc)
+  ) %>%
+      mutate(WY_lab = case_when(
+    water_year %in% c(2021, 2022) ~ "dry",
+    water_year %in% c(2023) ~ "wet",
+    water_year %in% c(2024) ~ "normal",
+    TRUE ~ NA_character_  
+  ))
+
+uptake_dyn2 <- uptake_dyn2 %>%
+  mutate(
+    frac_NO3_uptake = ifelse(NO3_supply > 0, U_NO3_calc / NO3_supply, NA),
+    frac_NH4_uptake = ifelse(NH4_supply > 0, U_NH4_calc / NH4_supply, NA)
+  )
+
+hist(uptake_dyn2$frac_NH4_uptake)
+hist(uptake_dyn2$frac_NO3_uptake)
+```
+
+
+#### Time sieries of fractional uptake efficiency in for each N:
+
+
+```{r, warning=F, size = 'small', echo=F, include=F,fig.width=9, fig.height=6}
+# Plot high NO3 demand over time
+Fr_NO3_sup <- ggplot(uptake_dyn2%>%filter(water_year<2024), aes(x = date, y = frac_NO3_uptake, color = jday, shape = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +
+  geom_point(size = 2, alpha = 0.7) +
+   ylab(expression(NO[3]~U[calc]~(g~m^-2~d^-1)/NO[3]~supply~(g~m^-2~d^-1))) +
+    scale_shape_manual(values = c(15, 0, 17, 2)) +
+  theme_classic()
+
+
+Fr_NH4_sup <- ggplot(uptake_dyn2%>%filter(water_year<2024), aes(x = date, y = frac_NH4_uptake, color = jday, shape = site)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +
+  geom_point(size = 2, alpha = 0.7) +
+   ylab(expression(NH[4]~U[calc]~(g~m^-2~d^-1)/Nh[4]~supply~(g~m^-2~d^-1))) +
+    scale_shape_manual(values = c(15, 0, 17, 2)) +
+  theme_classic()
+```
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=8}
+
+Ndyn_grid <- ggarrange(
+  Fr_NO3_sup,
+  Fr_NH4_sup,
   ncol = 1, nrow = 2,
   common.legend = TRUE, 
   legend = "bottom")
@@ -675,210 +1240,161 @@ Ndyn_grid
 
 ```
 
-### plots for DOY 
-color by year (2022 or 2023)
-Looks like uptake is generally still higher in 2023
+#### Summary of fractional uptake of N from dry to wet years
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
-nh4_plot <-ggplot(uptake_df, aes(x = jday, y = Uadd_g_m2_D_NH3,color = water_year, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +theme_classic() +
-   ylab(expression(NH[4]~U[t]~(g~m^-2~d^-1)))
+uptake_dyn_sum <- uptake_dyn2%>%
+  filter(water_year<2024)%>%
+  group_by(site, WY_lab) %>%
+  summarise(frac_NO3_uptake = mean(frac_NO3_uptake, na.rm=T),
+           frac_NH4_uptake = mean(frac_NH4_uptake, na.rm=T),
+           frac_N_uptake = mean(frac_N_uptake, na.rm=T),
+        )
+  
+uptake_dyn_sum
+```
 
-no3_plot <-ggplot(uptake_df, aes(x = jday, y = Uadd_g_m2_D_NO3, color = water_year, shape = site)) +
+### Nitrogen dynamics within streams from upper to lower reaches:
+
+#### Looking at possible nitrogen retention with BW or GB:
+
+
+- NO₃/NH₄ retention fraction close to 1: Most nitrogen is processed/retained before reaching the lower reach.
+
+- NO₃/NH₄ retention fraction close to 0: Most nitrogen passes downstream unchanged.
+
+-  Negative retention values: suggest an increase in nitrogen downstream, possibly from inputs like tributaries or groundwater
+
+
+```{r, warning=F, size = 'small', echo=T, include=T,fig.width=9, fig.height=6}
+# Define reach lengths
+bw_reach_length <- 4150  # meters (BWU to BWL)
+gb_reach_length <- 1100  # meters (GBU to GBL)
+
+# Calculate NO3 and NH4 retention with reach area
+reach_rent <- uptake_dyn %>%
+  filter(site %in% c("BWU", "BWL", "GBU", "GBL")) %>%
+  group_by(catch, date) %>%
+  summarize(
+    NO3_supply_upper = NO3_supply[site %in% c("BWU", "GBU")],
+    NO3_supply_lower = NO3_supply[site %in% c("BWL", "GBL")],
+    NH4_supply_upper = NH4_supply[site %in% c("BWU", "GBU")],
+    NH4_supply_lower = NH4_supply[site %in% c("BWL", "GBL")],
+    U_NO3_upper = U_NO3_calc[site %in% c("BWU", "GBU")],
+    U_NO3_lower = U_NO3_calc[site %in% c("BWL", "GBL")],
+    U_NH4_upper = U_NH4_calc[site %in% c("BWU", "GBU")],
+    U_NH4_lower = U_NH4_calc[site %in% c("BWL", "GBL")],
+    w_m_upper = w_m[site %in% c("BWU", "GBU")],  # Stream width for upper reach
+    w_m_lower = w_m[site %in% c("BWL", "GBL")]   # Stream width for lower reach
+  ) %>%
+  mutate(
+    # Assign reach length based on the system
+    reach_length = case_when(
+      catch == "BW" ~ bw_reach_length,
+      catch == "GB" ~ gb_reach_length
+    ),
+    # Calculate reach area (reach length * width)
+    reach_area = reach_length * ((w_m_upper + w_m_lower) / 2),  # Average width
+    
+    # Calculate NO3 and NH4 retention fractions
+    NO3_retention = 1 - (NO3_supply_lower / NO3_supply_upper),
+    NH4_retention = 1 - (NH4_supply_lower / NH4_supply_upper),
+    
+    # Calculate processed nitrogen (g/m2/day × reach area)
+    NO3_processed = (NO3_supply_upper - NO3_supply_lower) * reach_area,
+    NH4_processed = (NH4_supply_upper - NH4_supply_lower) * reach_area
+  )%>%
+  mutate(jday=yday(date))
+summary(reach_rent)
+
+reach_rent<- water_year(reach_rent)
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=F,fig.width=9, fig.height=6}
+# Plot high NO3 demand over time
+Rent_NO3_plt <- ggplot(reach_rent%>%filter(water_year<2024), aes(x = date, y = NO3_retention, color = jday, shape = catch)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-    theme_classic()  +
-      ylab(expression(NO[3]~U[t]~(g~m^-2~d^-1)))
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +
+  geom_point(size = 2, alpha = 0.7) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+   ylab(expression(NO[3]~retention)) +
+    scale_shape_manual(values = c(15, 17)) +
+  theme_classic()
+
+
+Rent_NH4_plt <- ggplot(reach_rent%>%filter(water_year<2024), aes(x = date, y = NH4_retention, color = jday, shape = catch)) +
+  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
+  scale_color_viridis_c(option = "viridis", name = "Day of year") +
+  geom_point(size = 2, alpha = 0.7) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "grey25") +
+   ylab(expression(NH[4]~retention)) +
+    scale_shape_manual(values = c(15, 17)) +
+  theme_classic()
+```
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
 
 Ndyn_grid <- ggarrange(
-  nh4_plot,
-  no3_plot,
+  Rent_NO3_plt,
+  Rent_NH4_plt,
   ncol = 1, nrow = 2,
   common.legend = TRUE, 
   legend = "bottom")
 
 Ndyn_grid
+
 ```
 
-#### flow patterns?
-No clear trends.
+
+#### summerize stream N  uptake of N from dry to wet years
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
-nh4_plot <-ggplot(uptake_df, aes(x = log(Q_m+1), y = Uadd_g_m2_D_NH3,color = jday, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +theme_classic() +
-   ylab(expression(NH[4]~U[t]~(g~m^-2~d^-1)))
+reach_rent_sum <- reach_rent%>%
+   mutate(WY_lab = case_when(
+    water_year %in% c(2021, 2022) ~ "dry",
+    water_year %in% c(2023) ~ "wet",
+    water_year %in% c(2024) ~ "normal",
+    TRUE ~ NA_character_  
+  ))
 
-no3_plot <-ggplot(uptake_df, aes(x = log(Q_m+1), y = Uadd_g_m2_D_NO3, color = jday, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-    theme_classic()  +
-      ylab(expression(NO[3]~U[t]~(g~m^-2~d^-1)))
-
-Ndyn_grid <- ggarrange(
-  nh4_plot,
-  no3_plot,
-  ncol = 1, nrow = 2,
-  common.legend = TRUE, 
-  legend = "bottom")
-
-Ndyn_grid
-```
-
-#### Alright so there could be a slight mismatch 
-In the timing or dates of uptake and supply estimates?
-
-
-```{r, warning=F, size = 'small', echo=T, include=T,fig.width=9, fig.height=4}
-
-no3D_plot <-ggplot(uptake_df, aes(x = Ndemand, y = Uadd_g_m2_D_NO3, color = jday, shape = site)) +
-    geom_point(aes(x = Ndemand, y = Uadd_g_m2_D_NH3, color = jday, shape = site),
-               size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-   xlab(expression(N~demand~(g~m^-2~d^-1))) +
-   ylab(expression(U[t]~(g~m^-2~d^-1))) + theme_classic()  
-
-nh4_plot <-ggplot(uptake_df, aes(x = NH4_supply, y = Uadd_g_m2_D_NH3,color = jday, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2))+
-     xlab(expression(NH[4]~supply~(g~m^-2~d^-1))) +
-     ylab(expression(NH[4]~U[t]~(g~m^-2~d^-1))) + theme_classic()  
-
-
-
-no3_plot <-ggplot(uptake_df, aes(x = NO3_supply, y = Uadd_g_m2_D_NO3, color = jday, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Day of year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-       xlab(expression(NO[3]~supply~(g~m^-2~d^-1))) +
-       ylab(expression(NO[3]~U[t]~(g~m^-2~d^-1))) + theme_classic()  
-
-
-Ndyn_grid <- ggarrange(
-  no3D_plot,
-  nh4_plot,
-  no3_plot,
-  ncol = 3, nrow = 1,
-  common.legend = TRUE, 
-  legend = "bottom")
-
-Ndyn_grid
-
-```
-
-
-#### Weekly averages?
-In the timing or dates of uptake and supply estimates?
-
-```{r, warning=F, size = 'small', echo=F, include=F,fig.width=6, fig.height=4}
-
-n_df_wk <- uptake_df%>%
-  mutate(wk= week(date)) %>%
-  group_by(site, wk, water_year)%>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-```
-
-
-```{r, warning=F, size = 'small', echo=T, include=T,fig.width=9, fig.height=4}
-
-no3D_plot <-ggplot(n_df_wk, aes(x = Ndemand, y = Uadd_g_m2_D_NO3, color = water_year, shape = site)) +
-    geom_point(aes(x = Ndemand, y = Uadd_g_m2_D_NH3, color = water_year, shape = site),
-               size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Water year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-   xlab(expression(N~demand~(g~m^-2~d^-1))) +
-   ylab(expression(U[t]~(g~m^-2~d^-1))) + theme_classic()  
-
-nh4_plot <-ggplot(n_df_wk, aes(x = NH4_supply, y = Uadd_g_m2_D_NH3,color = water_year, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Water year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2))+
-     xlab(expression(NH[4]~supply~(g~m^-2~d^-1))) +
-     ylab(expression(NH[4]~U[t]~(g~m^-2~d^-1))) + theme_classic()  
-
-
-
-no3_plot <-ggplot(n_df_wk, aes(x = NO3_supply, y = Uadd_g_m2_D_NO3, color = water_year, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Water year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-       xlab(expression(NO[3]~supply~(g~m^-2~d^-1))) +
-       ylab(expression(NO[3]~U[t]~(g~m^-2~d^-1))) + theme_classic()  
-
-
-Ndyn_grid <- ggarrange(
-  no3D_plot,
-  nh4_plot,
-  no3_plot,
-  ncol = 3, nrow = 1,
-  common.legend = TRUE, 
-  legend = "bottom")
-
-Ndyn_grid
-
+reach_rent_sum <- reach_rent_sum%>%
+  filter(water_year<2024)%>%
+  group_by(catch, WY_lab) %>%
+  summarise(NO3_retention = mean(NO3_retention, na.rm=T),
+           NH4_retention = mean(NH4_retention, na.rm=T))
+  
+reach_rent_sum
 ```
 
 
 
-#### Monthly averages?
-In the timing or dates of uptake and supply estimates?
-
-```{r, warning=F, size = 'small', echo=F, include=F,fig.width=6, fig.height=4}
-
-n_df_mon <- uptake_df%>%
-  mutate(mon= month(date)) %>%
-  group_by(site, mon, water_year)%>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-```
+## Final thoughts:
 
 
 
-
-```{r, warning=F, size = 'small', echo=T, include=T,fig.width=9, fig.height=4}
-
-no3D_plot <-ggplot(n_df_mon, aes(x = Ndemand, y = Uadd_g_m2_D_NO3, color = water_year, shape = site)) +
-    geom_point(aes(x = Ndemand, y = Uadd_g_m2_D_NH3, color = water_year, shape = site),
-               size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Water year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-   xlab(expression(N~demand~(g~m^-2~d^-1))) +
-   ylab(expression(U[t]~(g~m^-2~d^-1))) + theme_classic()  
-
-nh4_plot <-ggplot(n_df_mon, aes(x = NH4_supply, y = Uadd_g_m2_D_NH3,color = water_year, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Water year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2))+
-     xlab(expression(NH[4]~supply~(g~m^-2~d^-1))) +
-     ylab(expression(NH[4]~U[t]~(g~m^-2~d^-1))) + theme_classic()  
+### Main points: 
 
 
+ 1.  Most of these creeks have low nitrogen demand, low uptake, and moderate nitrogen supply.
 
-no3_plot <-ggplot(n_df_mon, aes(x = NO3_supply, y = Uadd_g_m2_D_NO3, color = water_year, shape = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
-  scale_color_viridis_c(option = "viridis", name = "Water year") + 
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-       xlab(expression(NO[3]~supply~(g~m^-2~d^-1))) +
-       ylab(expression(NO[3]~U[t]~(g~m^-2~d^-1))) + theme_classic()  
+ 2.  Background calculations of nitrogen supply and demand dynamics showed that supply for NO3 and to a lesser degree NH4 varies widely, calculated estimates of NO3 uptake remains consistently low, with most values below 0.012 g N/m²/day, while NH4 supply in streams was generally lower (especially at BW) and calculated NH4 uptake was always near 0. So uptake is limited by either biologic demand or environmental conditions, but not supply.  
+
+ 3.  However, experimental uptake (TASCC) with equal amounts of NO3 or NH4, showed a high affinity to uptake NH4 when present at saturating conditions suitable for the instantaneous uptake estimates. So there could some 
+
+ 4.  Nitrogen retention decreased in BW during wet years, but increased during wet years in GBL 
+
+      -  I suspect following that a ground water flushing also mirrored in the SPC signal.
 
 
-Ndyn_grid <- ggarrange(
-  no3D_plot,
-  nh4_plot,
-  no3_plot,
-  ncol = 3, nrow = 1,
-  common.legend = TRUE, 
-  legend = "bottom")
+### Synthesizing conclusions: 
 
-Ndyn_grid
+In general uptake rates remained low even at high supply values. And implies in most instances that nitrogen supply is not the limiting factor in nitrogen cycling rates, even though there appears to be nitrogen limitation based on the N:P ratios of nitrogen availability. Instead, biological demand, uptake efficiency, or environmental conditions (e.g., temperature and flow conditions) could be controlling nitrogen processing rates.
 
-```
+NH₄⁺ supply is generally lower than NO₃⁻ supply in both creeks, but NH₄⁺ supply exceeded demand at GB. This suggests NH₄⁺ limitation may be less frequent compared to NO₃⁻ limitation. Even when nitrogen demand is high, our calculated uptake rates of NH4 remain close to zero for most cases, likely because NO3 is more readily available when NH4 is scarce. Our experimental instantaneous NH4 and NO3 injections support finding as when NH4 were injected under similar conditions experimental nitrogen uptake (Ut) was faster for NH4 relative to NO3. This affinity for NH4 suggests in-stream communities maybe able to process both nitrogen types under flow conditions that favor autotrophic production. For example we found fraction uptake efficiency in either nitrogen decreased by 50% and 74% in the lower reaches of BW (x to y) and GB (x to y) streams from dry to wet years. 
+
+######
+\old text 
+When evaluation nitrogen retained or consumed between the upper and lower reaches in each creek, we found that the proportion on nitrogen supply retained between BWU and BWL was generally high in BW creek during dry years (NO3 retention: 0.846 and NH4 retention: 0.815), possibly due to higher metabolism and productivity. However, in wet year (2023), nitrogen retention decreased (NO3 retention: -x and NH4 retention: -y) and indicated a potentially large export of NH4 downstream of our lower reach station. We observed the opposite nitrogen dynamic at GB, where dry had greater nitrogen export especially of NH4 (NO3 retention: - and NH4 retention: -) and wetter years had higher nitrogen retention (NO3 retention:  and NH4 retention: ). We believe this reversal is likely due to a groundwater inflow in between the two reach locations. * Strong decrease in SPC signal from dry to wet years   
+
+

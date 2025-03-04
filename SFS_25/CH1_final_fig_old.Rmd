@@ -138,40 +138,23 @@ comparisons <- list(
 Not included here.
 
 ```{r, warning=F, size = 'small', echo=FALSE, include=F}
+### Read in all data
+####
 date_datf <- water_year(date_datf)
 
-covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat_AFDM.rds") %>%
+covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat.rds") %>%
   dplyr::select("date", "Site","bulk.density","AFDM_mgg","AFDM_mgcm2", "Chla_ugL_Q", "Pheo_ugL_Q")
 summary(covariat_dat)
 
 covariat_dat <- date_datf %>%
   left_join(covariat_dat, by=c("date", "site"="Site"))
 
-flow_df <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_flow_df.rds")
-
-covariat_dat <- covariat_dat %>%
-    left_join(flow_df, by=c("date", "site"))
-
-
 bg_nuts <- readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
-  filter(location=="stream") %>%
+  #mutate(date = as.Date(date, format="%m/%d/%y")) %>%
+  dplyr::filter(location=="stream") %>%
     mutate(NO3_mgL_dl = if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl))%>%
     mutate(NH4_mgL_dl=if_else(NH4_mgL_dl < 0.001, 0.001, NH4_mgL_dl))%>%
-    mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl)) %>%
-  mutate(PO4_ugL_dl=if_else(DOC_mgL_dl < 0.25, 0.125, DOC_mgL_dl)) %>%
-  group_by(site, shore, date, depth, location, substrate) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-
-
-##### pivot wider 
-bg_nuts_wide <- bg_nuts %>%
-  dplyr::select(site, date, substrate, NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill) %>%
-  group_by(site, date,substrate) %>% 
-  summarise(across(c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), mean, na.rm = TRUE), .groups = "drop") %>% 
-  pivot_wider(names_from = substrate, values_from = c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), names_sep = "_")
-
-######
-
+    mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl))
 
 WQ_dat <- read.csv("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/Stream_Lake_YSI_WaterQuality.csv")%>%
   mutate(date = as.Date(date, format="%m/%d/%y")) %>%
@@ -180,9 +163,7 @@ WQ_dat <- read.csv("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/Wa
   dplyr::summarise(pH=mean(pH, na.rm=T))
 
 covariat_datq <- covariat_dat%>%
-  left_join(bg_nuts_wide[ , c("site", "date", "NO3_mgL_dl_sw", "NO3_mgL_dl_pw", "NH4_mgL_dl_sw", 
-                              "NH4_mgL_dl_pw", "PO4_ugL_dl_sw","PO4_ugL_dl_pw", "DOC_mgL_dl_sw",
-                              "DOC_mgL_dl_pw", "pH_infill_sw",  "pH_infill_pw")], by=c("date", "site"))
+  left_join(bg_nuts[ , c("site", "substrate", "date", "NO3_mgL_dl", "NH4_mgL_dl", "PO4_ugL_dl", "DOC_mgL_dl")], by=c("date", "site"))
 
 covariat_datq <- covariat_datq%>%
   left_join(WQ_dat,  by=c("date", "site"))
@@ -191,7 +172,7 @@ covariat_datq <- covariat_datq%>%
 ## bring in SPC data 
 ### missing 2024 BW SPC
 SPC_BWL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWL_SPCv2.rds") %>%
-  filter(datetime>as.POSIXct("2021-04-29 24:00:00"))
+  dplyr:: filter(datetime>as.POSIXct("2021-04-29 24:00:00"))
 SPC_BWL$site <- "BWL"
 SPC_BWU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWU_SPCv2.rds")
 SPC_BWU$site <- "BWU"
@@ -216,7 +197,7 @@ SPC_dat_day <- SPC_dat %>%
 #hist(SPC_dat_day$SPC_sd)
 
 SPC_datD <- SPC_dat_day %>%
-  filter(wt_sd<4.1 & SPC_sd <35)
+   dplyr::filter(wt_sd<4.1 & SPC_sd <35)
   
 #hist(SPC_datD$wt_sd)
 #hist(SPC_datD$SPC_sd)
@@ -226,23 +207,47 @@ covariat_datq <- covariat_datq%>%
 
 ### 
 ## Bring in morph data : 
-morph_df <- read.csv("/Users/kellyloria/Documents/UNR/MSMmetab/stream_morphology_core.csv")%>%
-  filter(quality =="trust") %>%
-    mutate(datetime = as.POSIXct(datetime, format="%Y-%m-%dT%H:%M:%SZ"),
-           date=as.Date(datetime)) %>%
-  rename(site="Site")
+## BWL  
+BWL_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWL_DO_flag_sat_light_v2.rds") %>%
+  dplyr::select(datetime, w, v, depth) %>%
+  mutate(site="BWL")
+summary(BWL_datM) 
 
+## BWU 
+BWU_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWU_DO_flag_sat_light_v2.rds") %>%
+    dplyr::select(datetime, w, v, depth) %>%
+  mutate(site="BWU")
+summary(BWU_datM)
 
-Morph_dat_day <- morph_df%>%
+## GBL 
+GBL_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBL_DO_flag_sat_light_v2.rds") %>%
+    dplyr::select(datetime, w, v, depth) %>%
+  mutate(site="GBL")
+summary(GBL_datM)
+
+## GBU 
+GBU_datM <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBU_DO_flag_sat_light_v2.rds") %>%
+    dplyr::select(datetime, w, v, depth) %>%
+  mutate(site="GBU")
+summary(GBU_datM)
+
+Morph_dat <- rbind(BWL_datM, BWU_datM, GBL_datM, GBU_datM)
+
+Morph_dat_day <- Morph_dat%>%
+  mutate(date =as.Date(datetime))%>%
   dplyr::group_by(site, date) %>%
   dplyr::summarise(
-    v_m=mean(v_estimation, na.rm=T),
+    v_m=mean(v, na.rm=T),
+    v_sd=sd(v, na.rm=T),
     w_m=mean(w, na.rm=T),
-    depth_measure=mean(z, na.rm=T))
+    w_sd=sd(w, na.rm=T),
+    depth_m=mean(depth, na.rm=T),
+    depth_sd=sd(depth, na.rm=T))
 
 
 covariat_datq <- covariat_datq%>%
   left_join(Morph_dat_day, by=c("date", "site"))
+
 
 #### DO ###
 ## BWL  
@@ -266,6 +271,7 @@ GBU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_o
 summary(GBU_dat)
 
 
+
 miniDOT_dat <- rbind(BWL_dat, BWU_dat, GBL_dat, GBU_dat)
 miniDOT_dat_day <- miniDOT_dat%>%
   mutate(date =as.Date(solar.time))%>%
@@ -274,7 +280,9 @@ miniDOT_dat_day <- miniDOT_dat%>%
     do.obs_m=mean(DO.obs, na.rm=T),
     do.obs_sd=sd(DO.obs, na.rm=T),
     wtr_m=mean(temp.water, na.rm=T),
-    wtr_sd=sd(temp.water, na.rm=T))
+    wtr_sd=sd(temp.water, na.rm=T),
+    Q_m= mean(discharge, na.rm=T),
+    Q_sd= sd(discharge, na.rm=T))
 
 covariat_datq <- covariat_datq%>%
   left_join(miniDOT_dat_day, by=c("date", "site"))
@@ -290,14 +298,14 @@ covariat_datq <- covariat_datq%>%
 ## Load metabolism model data
 ##================================
 BWL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWL_Full_2025-02-06_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+  dplyr::filter(GPP_daily_Rhat<1.05)%>%
+  dplyr::filter(GPP_97.5pct>0)%>%
+  dplyr::filter(ER_daily_Rhat<1.05) %>%
+  dplyr::filter(ER_2.5pct<0)%>%
+  dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+  dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -310,14 +318,14 @@ BWL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream
 summary(BWL_met_binned)
 
 GBL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBL_Full_2025-02-02_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+  dplyr::filter(GPP_daily_Rhat<1.05)%>%
+  dplyr::filter(GPP_97.5pct>0)%>%
+  dplyr::filter(ER_daily_Rhat<1.05) %>%
+  dplyr::filter(ER_2.5pct<0)%>%
+  dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+  dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -329,14 +337,14 @@ GBL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream
 
 
 BWU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWU_Full_2025-02-04_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+  dplyr::filter(GPP_daily_Rhat<1.05)%>%
+  dplyr::filter(GPP_97.5pct>0)%>%
+  dplyr::filter(ER_daily_Rhat<1.05) %>%
+  dplyr::filter(ER_2.5pct<0)%>%
+  dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+  dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -347,14 +355,14 @@ BWU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream
          catch="BW")
 
 GBU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBU_Full_2025-02-03_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+  dplyr::filter(GPP_daily_Rhat<1.05)%>%
+  dplyr::filter(GPP_97.5pct>0)%>%
+  dplyr::filter(ER_daily_Rhat<1.05) %>%
+  dplyr::filter(ER_2.5pct<0)%>%
+  dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+  dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date,GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -368,51 +376,6 @@ metab_dat <- rbind(BWL_met_binned, BWU_met_binned, GBL_met_binned, GBU_met_binne
 
 covariat_datq <- covariat_datq%>%
   left_join(metab_dat, by=c("date", "site", "catch"))
-
-
-### read in streamlight data
-## BWL  
-BWL_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_BWL.rds")
-summary(BWL_SL_dat) 
-
-## BWU 
-BWU_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_BWU.rds") 
-summary(BWU_SL_dat)
-
-## GBL 
-GBL_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_GBL.rds") 
-summary(GBL_SL_dat)
-
-## GBU 
-GBU_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_GBU.rds") 
-summary(GBU_SL_dat)
-
-light_mod_df <- rbind(BWL_SL_dat, BWU_SL_dat, GBL_SL_dat, GBU_SL_dat)
-
-light_mod_df_day <- light_mod_df%>%
-  mutate(date=as.Date(local_time)) %>%
-  group_by(site, date)%>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
-  dplyr::select(site, date, LAI, PAR_inc, PAR_bc, veg_shade, bank_shade, PAR_surface)
-
-
-covariat_datq <- covariat_datq%>%
-  left_join(light_mod_df_day, by=c("date", "site"))
-
-
-```
-
-
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-
-covariat_datq$AFDM_ugcm2 <- (covariat_datq$AFDM_mgcm2 *1000)
-#hist(covariat_datq$AFDM_ugcm2 )
-
-covariat_datq$Biom_Chla <- (covariat_datq$AFDM_ugcm2)/(covariat_datq$Chla_ugL_Q)
-#hist(covariat_datq$Biom_Chla)
-
-summary(covariat_datq)
-
 ```
 
 Pause to make a column for biomass to chla ratios And also make biomass
@@ -425,20 +388,6 @@ covariat_datq$AFDM_ugcm2 <- (covariat_datq$AFDM_mgcm2 *1000)
 
 covariat_datq$Biom_Chla <- (covariat_datq$AFDM_ugcm2)/(covariat_datq$Chla_ugL_Q)
 #hist(covariat_datq$Biom_Chla)
-```
-
-Additive columns for combined surface and pore water nutrient as tot_ in ugL
-
-```{r, warning=F, size = 'small', echo=T, include=F, fig.width=6, fig.height=4}
-
-covariat_datq$tot_NO3_ugL <- c(covariat_datq$NO3_mgL_dl_pw + covariat_datq$NO3_mgL_dl_sw) *1000
-
-covariat_datq$tot_NH4_ugL <- c(covariat_datq$NH4_mgL_dl_pw + covariat_datq$NH4_mgL_dl_sw) *1000
-
-covariat_datq$tot_PO4_ugL <- c(covariat_datq$PO4_ugL_dl_pw + covariat_datq$PO4_ugL_dl_pw)
-
-covariat_datq$tot_DOC_ugL <- c(covariat_datq$DOC_mgL_dl_pw + covariat_datq$DOC_mgL_dl_sw) *1000
-
 
 summary(covariat_datq)
 
@@ -545,29 +494,132 @@ stream.
 
 ```{r, warning=F, size = 'small', echo=F, include=T}
 
-summary_mean <- covariat_datq_BW %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-summary_mean
-summary_min <- covariat_datq_BW %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
-summary_min
-summary_max <- covariat_datq_BW %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
-summary_max
+summary_tab <- covariat_datq_BW %>%
+  summarise(
+    mean_AFDM_mgg = round(mean(AFDM_mgg, na.rm = TRUE), 3),
+    min_AFDM_mgg = min(AFDM_mgg, na.rm = TRUE),
+    max_AFDM_mgg = max(AFDM_mgg, na.rm = TRUE),
+
+    mean_Chla_ugL_Q = round(mean(Chla_ugL_Q, na.rm = TRUE), 3),
+    min_Chla_ugL_Q = min(Chla_ugL_Q, na.rm = TRUE),
+    max_Chla_ugL_Q = max(Chla_ugL_Q, na.rm = TRUE),
+
+    mean_AFDM_ugcm2 = round(mean(AFDM_ugcm2, na.rm = TRUE), 3),
+    min_AFDM_ugcm2 = min(AFDM_ugcm2, na.rm = TRUE),
+    max_AFDM_ugcm2 = max(AFDM_ugcm2, na.rm = TRUE),
+
+    mean_GPP = round(mean(GPP_mean, na.rm = TRUE), 3),
+    min_GPP = min(GPP_mean, na.rm = TRUE),
+    max_GPP = max(GPP_mean, na.rm = TRUE),
+
+    mean_ER = round(mean(ER_mean, na.rm = TRUE), 3),
+    min_ER = min(ER_mean, na.rm = TRUE),
+    max_ER = max(ER_mean, na.rm = TRUE),
+
+    mean_wtr_m = round(mean(wtr_m, na.rm = TRUE), 3),
+    min_wtr_m = min(wtr_m, na.rm = TRUE),
+    max_wtr_m = max(wtr_m, na.rm = TRUE),
+
+    mean_Q_m = round(mean(Q_m, na.rm = TRUE), 3),
+    min_Q_m = min(Q_m, na.rm = TRUE),
+    max_Q_m = max(Q_m, na.rm = TRUE)
+  )
+
+substrate_summary <- covariat_datq_BW %>%
+  dplyr::filter(substrate %in% c("sw", "pw")) %>%
+  group_by(substrate) %>%
+  summarise(
+    mean_PO4_ugL_dl = round(mean(PO4_ugL_dl, na.rm = TRUE), 3),
+    min_PO4_ugL_dl = min(PO4_ugL_dl, na.rm = TRUE),
+    max_PO4_ugL_dl = max(PO4_ugL_dl, na.rm = TRUE),
+
+    mean_NO3_mgL_dl = round(mean(NO3_mgL_dl, na.rm = TRUE), 3),
+    min_NO3_mgL_dl = min(NO3_mgL_dl, na.rm = TRUE),
+    max_NO3_mgL_dl = max(NO3_mgL_dl, na.rm = TRUE),
+
+    mean_NH4_mgL_dl = round(mean(NH4_mgL_dl, na.rm = TRUE), 3),
+    min_NH4_mgL_dl = min(NH4_mgL_dl, na.rm = TRUE),
+    max_NH4_mgL_dl = max(NH4_mgL_dl, na.rm = TRUE),
+
+    mean_pH = round(mean(pH, na.rm = TRUE), 3),
+    min_pH = min(pH, na.rm = TRUE),
+    max_pH = max(pH, na.rm = TRUE),
+
+    mean_DOC_mgL_dl = round(mean(DOC_mgL_dl, na.rm = TRUE), 3),
+    min_DOC_mgL_dl = min(DOC_mgL_dl, na.rm = TRUE),
+    max_DOC_mgL_dl = max(DOC_mgL_dl, na.rm = TRUE)
+  )
+
+
+# View results
+print(summary_tab)
+print(substrate_summary)
 ```
 
 ### GB Catchment
 
 ```{r, warning=F, size = 'small', echo=F, include=T}
-summary_mean <- covariat_datq_GB %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-summary_mean
-summary_min <- covariat_datq_GB %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
-summary_min
-summary_max <- covariat_datq_GB %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
-summary_max
+
+summary_tab <- covariat_datq_GB %>%
+  summarise(
+    mean_AFDM_mgg = round(mean(AFDM_mgg, na.rm = TRUE), 3),
+    min_AFDM_mgg = min(AFDM_mgg, na.rm = TRUE),
+    max_AFDM_mgg = max(AFDM_mgg, na.rm = TRUE),
+
+    mean_Chla_ugL_Q = round(mean(Chla_ugL_Q, na.rm = TRUE), 3),
+    min_Chla_ugL_Q = min(Chla_ugL_Q, na.rm = TRUE),
+    max_Chla_ugL_Q = max(Chla_ugL_Q, na.rm = TRUE),
+
+    mean_AFDM_ugcm2 = round(mean(AFDM_ugcm2, na.rm = TRUE), 3),
+    min_AFDM_ugcm2 = min(AFDM_ugcm2, na.rm = TRUE),
+    max_AFDM_ugcm2 = max(AFDM_ugcm2, na.rm = TRUE),
+
+    mean_GPP = round(mean(GPP_mean, na.rm = TRUE), 3),
+    min_GPP = min(GPP_mean, na.rm = TRUE),
+    max_GPP = max(GPP_mean, na.rm = TRUE),
+
+    mean_ER = round(mean(ER_mean, na.rm = TRUE), 3),
+    min_ER = min(ER_mean, na.rm = TRUE),
+    max_ER = max(ER_mean, na.rm = TRUE),
+
+    mean_wtr_m = round(mean(wtr_m, na.rm = TRUE), 3),
+    min_wtr_m = min(wtr_m, na.rm = TRUE),
+    max_wtr_m = max(wtr_m, na.rm = TRUE),
+
+    mean_Q_m = round(mean(Q_m, na.rm = TRUE), 3),
+    min_Q_m = min(Q_m, na.rm = TRUE),
+    max_Q_m = max(Q_m, na.rm = TRUE)
+  )
+
+substrate_summary <- covariat_datq_GB %>%
+  dplyr::filter(substrate %in% c("sw", "pw")) %>%
+  group_by(substrate) %>%
+  summarise(
+    mean_PO4_ugL_dl = round(mean(PO4_ugL_dl, na.rm = TRUE), 3),
+    min_PO4_ugL_dl = min(PO4_ugL_dl, na.rm = TRUE),
+    max_PO4_ugL_dl = max(PO4_ugL_dl, na.rm = TRUE),
+
+    mean_NO3_mgL_dl = round(mean(NO3_mgL_dl, na.rm = TRUE), 3),
+    min_NO3_mgL_dl = min(NO3_mgL_dl, na.rm = TRUE),
+    max_NO3_mgL_dl = max(NO3_mgL_dl, na.rm = TRUE),
+
+    mean_NH4_mgL_dl = round(mean(NH4_mgL_dl, na.rm = TRUE), 3),
+    min_NH4_mgL_dl = min(NH4_mgL_dl, na.rm = TRUE),
+    max_NH4_mgL_dl = max(NH4_mgL_dl, na.rm = TRUE),
+
+    mean_pH = round(mean(pH, na.rm = TRUE), 3),
+    min_pH = min(pH, na.rm = TRUE),
+    max_pH = max(pH, na.rm = TRUE),
+
+    mean_DOC_mgL_dl = round(mean(DOC_mgL_dl*1000, na.rm = TRUE), 3),
+    min_DOC_mgL_dl = min(DOC_mgL_dl*1000, na.rm = TRUE),
+    max_DOC_mgL_dl = max(DOC_mgL_dl*1000, na.rm = TRUE)
+  )
+
+
+# View results
+print(summary_tab)
+print(substrate_summary)
 ```
 
 #### Break out by stream reach location:
@@ -589,17 +641,68 @@ BWL_DF22 <- covariat_datq_BW %>%
 BWL_DF23 <- covariat_datq_BW %>%
   dplyr::filter(site == "BWL") %>%
   dplyr::filter(water_year==2022)
+  
+  
+summary_tab <- BWL_DF %>%
+  summarise(
+    mean_AFDM_mgg = round(mean(AFDM_mgg, na.rm = TRUE), 3),
+    min_AFDM_mgg = min(AFDM_mgg, na.rm = TRUE),
+    max_AFDM_mgg = max(AFDM_mgg, na.rm = TRUE),
+
+    mean_Chla_ugL_Q = round(mean(Chla_ugL_Q, na.rm = TRUE), 3),
+    min_Chla_ugL_Q = min(Chla_ugL_Q, na.rm = TRUE),
+    max_Chla_ugL_Q = max(Chla_ugL_Q, na.rm = TRUE),
+
+    mean_AFDM_ugcm2 = round(mean(AFDM_ugcm2, na.rm = TRUE), 3),
+    min_AFDM_ugcm2 = min(AFDM_ugcm2, na.rm = TRUE),
+    max_AFDM_ugcm2 = max(AFDM_ugcm2, na.rm = TRUE),
+
+    mean_GPP = round(mean(GPP_mean, na.rm = TRUE), 3),
+    min_GPP = min(GPP_mean, na.rm = TRUE),
+    max_GPP = max(GPP_mean, na.rm = TRUE),
+
+    mean_ER = round(mean(ER_mean, na.rm = TRUE), 3),
+    min_ER = min(ER_mean, na.rm = TRUE),
+    max_ER = max(ER_mean, na.rm = TRUE),
+
+    mean_wtr_m = round(mean(wtr_m, na.rm = TRUE), 3),
+    min_wtr_m = min(wtr_m, na.rm = TRUE),
+    max_wtr_m = max(wtr_m, na.rm = TRUE),
+
+    mean_Q_m = round(mean(Q_m, na.rm = TRUE), 3),
+    min_Q_m = min(Q_m, na.rm = TRUE),
+    max_Q_m = max(Q_m, na.rm = TRUE)
+  )
+
+substrate_summary <- BWL_DF %>%
+  dplyr::filter(substrate %in% c("sw", "pw")) %>%
+  group_by(substrate) %>%
+  summarise(
+    mean_PO4_ugL_dl = round(mean(PO4_ugL_dl, na.rm = TRUE), 3),
+    min_PO4_ugL_dl = min(PO4_ugL_dl, na.rm = TRUE),
+    max_PO4_ugL_dl = max(PO4_ugL_dl, na.rm = TRUE),
+
+    mean_NO3_mgL_dl = round(mean(NO3_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NO3_mgL_dl = min(NO3_mgL_dl*1000, na.rm = TRUE),
+    max_NO3_mgL_dl = max(NO3_mgL_dl*1000, na.rm = TRUE),
+
+    mean_NH4_mgL_dl = round(mean(NH4_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NH4_mgL_dl = min(NH4_mgL_dl*1000, na.rm = TRUE),
+    max_NH4_mgL_dl = max(NH4_mgL_dl*1000, na.rm = TRUE),
+
+    mean_pH = round(mean(pH, na.rm = TRUE), 3),
+    min_pH = min(pH, na.rm = TRUE),
+    max_pH = max(pH, na.rm = TRUE),
+
+    mean_DOC_mgL_dl = round(mean(DOC_mgL_dl, na.rm = TRUE), 3),
+    min_DOC_mgL_dl = min(DOC_mgL_dl, na.rm = TRUE),
+    max_DOC_mgL_dl = max(DOC_mgL_dl, na.rm = TRUE)
+  )
 
 
-summary_mean <- BWL_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-summary_mean
-summary_min <- BWL_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
-summary_min
-summary_max <- BWL_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
-summary_max
+# View results
+print(summary_tab)
+print(substrate_summary)
 ```
 
 ##### BWU:
@@ -620,15 +723,66 @@ BWU_DF23 <- covariat_datq_BW %>%
   dplyr::filter(site == "BWU") %>%
   dplyr::filter(water_year==2023)
 
-summary_mean <- BWU_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-summary_mean
-summary_min <- BWU_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
-summary_min
-summary_max <- BWU_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
-summary_max
+summary_tab <- BWU_DF %>%
+  summarise(
+    mean_AFDM_mgg = round(mean(AFDM_mgg, na.rm = TRUE), 3),
+    min_AFDM_mgg = min(AFDM_mgg, na.rm = TRUE),
+    max_AFDM_mgg = max(AFDM_mgg, na.rm = TRUE),
+
+    mean_Chla_ugL_Q = round(mean(Chla_ugL_Q, na.rm = TRUE), 3),
+    min_Chla_ugL_Q = min(Chla_ugL_Q, na.rm = TRUE),
+    max_Chla_ugL_Q = max(Chla_ugL_Q, na.rm = TRUE),
+
+    mean_AFDM_ugcm2 = round(mean(AFDM_ugcm2, na.rm = TRUE), 3),
+    min_AFDM_ugcm2 = min(AFDM_ugcm2, na.rm = TRUE),
+    max_AFDM_ugcm2 = max(AFDM_ugcm2, na.rm = TRUE),
+
+    mean_GPP = round(mean(GPP_mean, na.rm = TRUE), 3),
+    min_GPP = min(GPP_mean, na.rm = TRUE),
+    max_GPP = max(GPP_mean, na.rm = TRUE),
+
+    mean_ER = round(mean(ER_mean, na.rm = TRUE), 3),
+    min_ER = min(ER_mean, na.rm = TRUE),
+    max_ER = max(ER_mean, na.rm = TRUE),
+
+    mean_wtr_m = round(mean(wtr_m, na.rm = TRUE), 3),
+    min_wtr_m = min(wtr_m, na.rm = TRUE),
+    max_wtr_m = max(wtr_m, na.rm = TRUE),
+
+    mean_Q_m = round(mean(Q_m, na.rm = TRUE), 3),
+    min_Q_m = min(Q_m, na.rm = TRUE),
+    max_Q_m = max(Q_m, na.rm = TRUE)
+  )
+
+# Compute mean for substrate-specific nutrients
+substrate_summary <- BWU_DF %>%
+  dplyr::filter(substrate %in% c("sw", "pw")) %>%
+  group_by(substrate) %>%
+  summarise(
+    mean_PO4_ugL_dl = round(mean(PO4_ugL_dl, na.rm = TRUE), 3),
+    min_PO4_ugL_dl = min(PO4_ugL_dl, na.rm = TRUE),
+    max_PO4_ugL_dl = max(PO4_ugL_dl, na.rm = TRUE),
+
+    mean_NO3_mgL_dl = round(mean(NO3_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NO3_mgL_dl = min(NO3_mgL_dl*1000, na.rm = TRUE),
+    max_NO3_mgL_dl = max(NO3_mgL_dl*1000, na.rm = TRUE),
+
+    mean_NH4_mgL_dl = round(mean(NH4_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NH4_mgL_dl = min(NH4_mgL_dl*1000, na.rm = TRUE),
+    max_NH4_mgL_dl = max(NH4_mgL_dl*1000, na.rm = TRUE),
+
+    mean_pH = round(mean(pH, na.rm = TRUE), 3),
+    min_pH = min(pH, na.rm = TRUE),
+    max_pH = max(pH, na.rm = TRUE),
+
+    mean_DOC_mgL_dl = round(mean(DOC_mgL_dl, na.rm = TRUE), 3),
+    min_DOC_mgL_dl = min(DOC_mgL_dl, na.rm = TRUE),
+    max_DOC_mgL_dl = max(DOC_mgL_dl, na.rm = TRUE)
+  )
+
+print(summary_tab)
+print(substrate_summary)
+
 ```
 
 ##### GBL:
@@ -653,15 +807,67 @@ GBL_DF24 <- covariat_datq_GB %>%
   dplyr::filter(site == "GBL") %>%
   dplyr::filter(water_year==2024)
 
-summary_mean <- GBL_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-summary_mean
-summary_min <- GBL_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
-summary_min
-summary_max <- GBL_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
-summary_max
+
+
+summary_tab <- GBL_DF %>%
+ summarise(
+    mean_AFDM_mgg = round(mean(AFDM_mgg, na.rm = TRUE), 3),
+    min_AFDM_mgg = min(AFDM_mgg, na.rm = TRUE),
+    max_AFDM_mgg = max(AFDM_mgg, na.rm = TRUE),
+
+    mean_Chla_ugL_Q = round(mean(Chla_ugL_Q, na.rm = TRUE), 3),
+    min_Chla_ugL_Q = min(Chla_ugL_Q, na.rm = TRUE),
+    max_Chla_ugL_Q = max(Chla_ugL_Q, na.rm = TRUE),
+
+    mean_AFDM_ugcm2 = round(mean(AFDM_ugcm2, na.rm = TRUE), 3),
+    min_AFDM_ugcm2 = min(AFDM_ugcm2, na.rm = TRUE),
+    max_AFDM_ugcm2 = max(AFDM_ugcm2, na.rm = TRUE),
+
+    mean_GPP = round(mean(GPP_mean, na.rm = TRUE), 3),
+    min_GPP = min(GPP_mean, na.rm = TRUE),
+    max_GPP = max(GPP_mean, na.rm = TRUE),
+
+    mean_ER = round(mean(ER_mean, na.rm = TRUE), 3),
+    min_ER = min(ER_mean, na.rm = TRUE),
+    max_ER = max(ER_mean, na.rm = TRUE),
+
+    mean_wtr_m = round(mean(wtr_m, na.rm = TRUE), 3),
+    min_wtr_m = min(wtr_m, na.rm = TRUE),
+    max_wtr_m = max(wtr_m, na.rm = TRUE),
+
+    mean_Q_m = round(mean(Q_m, na.rm = TRUE), 3),
+    min_Q_m = min(Q_m, na.rm = TRUE),
+    max_Q_m = max(Q_m, na.rm = TRUE)
+  )
+
+# Compute mean for substrate-specific nutrients
+substrate_summary <- GBL_DF %>%
+  dplyr::filter(substrate %in% c("sw", "pw")) %>%
+   group_by(substrate) %>%
+  summarise(
+    mean_PO4_ugL_dl = round(mean(PO4_ugL_dl, na.rm = TRUE), 3),
+    min_PO4_ugL_dl = min(PO4_ugL_dl, na.rm = TRUE),
+    max_PO4_ugL_dl = max(PO4_ugL_dl, na.rm = TRUE),
+
+    mean_NO3_mgL_dl = round(mean(NO3_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NO3_mgL_dl = min(NO3_mgL_dl*1000, na.rm = TRUE),
+    max_NO3_mgL_dl = max(NO3_mgL_dl*1000, na.rm = TRUE),
+
+    mean_NH4_mgL_dl = round(mean(NH4_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NH4_mgL_dl = min(NH4_mgL_dl*1000, na.rm = TRUE),
+    max_NH4_mgL_dl = max(NH4_mgL_dl*1000, na.rm = TRUE),
+
+    mean_pH = round(mean(pH, na.rm = TRUE), 3),
+    min_pH = min(pH, na.rm = TRUE),
+    max_pH = max(pH, na.rm = TRUE),
+
+    mean_DOC_mgL_dl = round(mean(DOC_mgL_dl, na.rm = TRUE), 3),
+    min_DOC_mgL_dl = min(DOC_mgL_dl, na.rm = TRUE),
+    max_DOC_mgL_dl = max(DOC_mgL_dl, na.rm = TRUE)
+  )
+
+print(summary_tab)
+print(substrate_summary)
 
 ```
 
@@ -683,15 +889,66 @@ GBU_DF23 <- covariat_datq_GB %>%
   dplyr::filter(site == "GBU") %>%
   dplyr::filter(water_year==2023)
 
-summary_mean <- GBU_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-summary_mean
-summary_min <- GBU_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
-summary_min
-summary_max <- GBU_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
-summary_max
+summary_tab <- GBU_DF %>%
+ summarise(
+    mean_AFDM_mgg = round(mean(AFDM_mgg, na.rm = TRUE), 3),
+    min_AFDM_mgg = min(AFDM_mgg, na.rm = TRUE),
+    max_AFDM_mgg = max(AFDM_mgg, na.rm = TRUE),
+
+    mean_Chla_ugL_Q = round(mean(Chla_ugL_Q, na.rm = TRUE), 3),
+    min_Chla_ugL_Q = min(Chla_ugL_Q, na.rm = TRUE),
+    max_Chla_ugL_Q = max(Chla_ugL_Q, na.rm = TRUE),
+
+    mean_AFDM_ugcm2 = round(mean(AFDM_ugcm2, na.rm = TRUE), 3),
+    min_AFDM_ugcm2 = min(AFDM_ugcm2, na.rm = TRUE),
+    max_AFDM_ugcm2 = max(AFDM_ugcm2, na.rm = TRUE),
+
+    mean_GPP = round(mean(GPP_mean, na.rm = TRUE), 3),
+    min_GPP = min(GPP_mean, na.rm = TRUE),
+    max_GPP = max(GPP_mean, na.rm = TRUE),
+
+    mean_ER = round(mean(ER_mean, na.rm = TRUE), 3),
+    min_ER = min(ER_mean, na.rm = TRUE),
+    max_ER = max(ER_mean, na.rm = TRUE),
+
+    mean_wtr_m = round(mean(wtr_m, na.rm = TRUE), 3),
+    min_wtr_m = min(wtr_m, na.rm = TRUE),
+    max_wtr_m = max(wtr_m, na.rm = TRUE),
+
+    mean_Q_m = round(mean(Q_m, na.rm = TRUE), 3),
+    min_Q_m = min(Q_m, na.rm = TRUE),
+    max_Q_m = max(Q_m, na.rm = TRUE)
+  )
+
+# Compute mean for substrate-specific nutrients
+substrate_summary <- GBU_DF %>%
+  dplyr::filter(substrate %in% c("sw", "pw")) %>%
+   group_by(substrate) %>%
+  summarise(
+    mean_PO4_ugL_dl = round(mean(PO4_ugL_dl, na.rm = TRUE), 3),
+    min_PO4_ugL_dl = min(PO4_ugL_dl, na.rm = TRUE),
+    max_PO4_ugL_dl = max(PO4_ugL_dl, na.rm = TRUE),
+
+    mean_NO3_mgL_dl = round(mean(NO3_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NO3_mgL_dl = min(NO3_mgL_dl*1000, na.rm = TRUE),
+    max_NO3_mgL_dl = max(NO3_mgL_dl*1000, na.rm = TRUE),
+
+    mean_NH4_mgL_dl = round(mean(NH4_mgL_dl*1000, na.rm = TRUE), 3),
+    min_NH4_mgL_dl = min(NH4_mgL_dl*1000, na.rm = TRUE),
+    max_NH4_mgL_dl = max(NH4_mgL_dl*1000, na.rm = TRUE),
+
+    mean_pH = round(mean(pH, na.rm = TRUE), 3),
+    min_pH = min(pH, na.rm = TRUE),
+    max_pH = max(pH, na.rm = TRUE),
+
+    mean_DOC_mgL_dl = round(mean(DOC_mgL_dl, na.rm = TRUE), 3),
+    min_DOC_mgL_dl = min(DOC_mgL_dl, na.rm = TRUE),
+    max_DOC_mgL_dl = max(DOC_mgL_dl, na.rm = TRUE)
+  )
+
+print(summary_tab)
+print(substrate_summary)
+
 ```
 
 ##### Kernal density plots of GPP and ER
@@ -936,7 +1193,7 @@ Maybe some with flow and water temp but all correlations are under 0.6
 ##### At Blackwood:
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=9, fig.height=9}
-cor_data <- covariat_datq_BW[, c(6, 10, 32, 67, 70, 71)]
+cor_data <- covariat_datq_BW[, c(6, 11:14, 18, 28, 30)]
 
 chart.Correlation(cor_data, histogram=TRUE, pch=19)
 ```
@@ -961,13 +1218,13 @@ chart.Correlation(cor_data, histogram=TRUE, pch=19)
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 biomass_mod_bw <- lmer(log(AFDM_ugcm2+1)~ 
-                         scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
+                         scale(NO3_mgL_dl* 1000) + 
+                         scale(NH4_mgL_dl* 1000) + 
+                         scale(PO4_ugL_dl) + 
                         scale(AFDM_mgg)+
+                        # scale(DOC_mgL_dl)+
                          scale(wtr_m) + 
-                         scale(Q_m) + 
-                         scale(PAR_surface) + 
-                         (1|site), data=covariat_datq_BW)
+                         scale(Q_m) + (1|site), data=covariat_datq_BW)
 
 summary(biomass_mod_bw)
 vif(biomass_mod_bw)
@@ -988,13 +1245,13 @@ fixed_effects1$Catchment <- "BW"
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 biomass_mod_gb <- lmer(log(AFDM_ugcm2+1)~ 
-                                                  scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
-                        scale(AFDM_mgg)+
+                         scale(NO3_mgL_dl* 1000) + 
+                         scale(NH4_mgL_dl* 1000) + 
+                         scale(PO4_ugL_dl) + 
+                         scale(AFDM_mgg)+
+                         #scale(DOC_mgL_dl)+
                          scale(wtr_m) + 
-                         scale(Q_m) + 
-                         scale(PAR_surface) + 
-                         (1|site), data=covariat_datq_GB)
+                         scale(Q_m)+(1|site), data=covariat_datq_GB)
 
 summary(biomass_mod_gb)
 vif(biomass_mod_gb)
@@ -1064,14 +1321,14 @@ Biomass_coeff_plot
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 
-chla_mod_bw <- lmer(log(Chla_ugL_Q+1) ~ 
-                        scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
-                        scale(AFDM_mgg)+
+chla_mod_bw <- lmer(log(Chla_ugL_Q+1)~ 
+                         scale(NO3_mgL_dl* 1000) + 
+                         scale(NH4_mgL_dl* 1000) + 
+                         scale(PO4_ugL_dl)+ 
+                     scale(AFDM_mgg)+
+                         #scale(DOC_mgL_dl)+
                          scale(wtr_m) + 
-                         scale(Q_m) + 
-                         scale(PAR_surface) + 
-                      (1|site), data=covariat_datq_BW)
+                         scale(Q_m)+(1|site), data=covariat_datq_BW)
 
 summary(chla_mod_bw)
 vif(chla_mod_bw)
@@ -1089,18 +1346,19 @@ fixed_effects_chl1$Catchment <- "BW"
 
 ```
 
-##### GB
+##### GB:
+
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 
-chla_mod_gb <- lmer(log(Chla_ugL_Q+1) ~ 
-                        scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
-                        scale(AFDM_mgg)+
-                         scale(wtr_m) + 
-                         scale(Q_m) + 
-                         scale(PAR_surface) + 
-                    (1|site), data=covariat_datq_GB)
+chla_mod_gb <- lmer(log(Chla_ugL_Q+1)~ 
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+
+                     scale(AFDM_mgg)+
+                      #scale(DOC_mgL_dl)+
+                      scale(wtr_m) + 
+                      scale(Q_m) + (1|site), data=covariat_datq_GB)
 
 summary(chla_mod_gb)
 vif(chla_mod_gb)
@@ -1183,12 +1441,13 @@ covariat_datq_BW_na$Q_m <- (log(covariat_datq_BW_na$Q_m+1))
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 gpp_mod_bw <- lmer(log(GPP_mean+1) ~ 
-                        scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
-                        scale(AFDM_mgg)+
-                         scale(wtr_m) + 
-                         scale(Q_m) + 
-                         scale(PAR_surface) + (1|site), 
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+
+                      scale(AFDM_mgg)+
+                      #scale(DOC_mgL_dl)+
+                      scale(wtr_m) +
+                      scale(Q_m)+ (1|site), 
                   data=covariat_datq_BW_na)
 
 summary(gpp_mod_bw)
@@ -1223,12 +1482,13 @@ Highly skewed even when log transformed.
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 gpp_mod_gb <- lmer(log(GPP_mean+1) ~ 
-                        scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
-                        scale(AFDM_mgg)+
-                         scale(wtr_m) + 
-                         scale(Q_m) + 
-                         scale(PAR_surface) + (1|site), data=covariat_datq_GB_na)
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+ 
+                             scale(AFDM_mgg)+
+                      #scale(DOC_mgL_dl)+
+                      scale(wtr_m) + 
+                      scale(Q_m) + (1|site), data=covariat_datq_GB_na)
 
 summary(gpp_mod_gb)
 vif(gpp_mod_gb)
@@ -1296,12 +1556,13 @@ nep_coeff_plot <-ggplot(fxd_eff_nep1, aes(x = estimate, y = reorder(term, estima
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 er_mod_bw <- lmer(log(ab_ER+1) ~ 
-                    scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
-                        scale(AFDM_mgg)+
-                         scale(wtr_m) + 
-                         scale(Q_m) + 
-                        scale(PAR_surface) + (1|site), 
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+
+                      scale(AFDM_mgg)+
+                      #scale(DOC_mgL_dl)+
+                      scale(wtr_m)  +
+                      scale(Q_m) + (1|site), 
                   data=covariat_datq_BW_na)
 
 summary(er_mod_bw)
@@ -1324,12 +1585,13 @@ fixed_effects_er$Catchment <- "BW"
 
 ```{r, warning=F, size = 'small', echo=T, fig.width=3, fig.height=3.5}
 er_mod_gb <- lmer(log(ab_ER+1) ~ 
-                    scale(tot_NO3_ugL) + 
-                         scale(tot_NH4_ugL) + 
-                        scale(AFDM_mgg)+
-                         scale(wtr_m) + 
-                         scale(Q_m) + 
-                        scale(PAR_surface) +  (1|site),
+                      scale(NO3_mgL_dl* 1000) + 
+                      scale(NH4_mgL_dl* 1000) + 
+                      scale(PO4_ugL_dl)+
+                      scale(AFDM_mgg)+
+                     # scale(DOC_mgL_dl)+
+                      scale(wtr_m) +
+                      scale(Q_m)+ (1|site), 
                   data=covariat_datq_GB_na)
 
 summary(er_mod_gb)
@@ -2995,377 +3257,3 @@ print(WY_n_grid3)
 ```
 
 
-
-
-
-
-
-
-
-### sand box:
-Goals to get new window of productivity threholds to identify DOY of peak SWE (?), or peak melt (?) to day of baseflow 
-Maybe get the number of days between peak incoming par and baseflow onset or peak par at surface across year 
-
-
-#### Data resolution for DO obs and GPP
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=1}
-# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
-plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
-
-plot_data_DO <- covariat_datq %>%
-    filter(site=="BWL") %>%
-  filter(!is.na(do.obs_m)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-plot_data_GPP <- covariat_datq %>%
-      filter(site=="BWL") %>%
-  filter(!is.na(GPP_mean)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-# Determine the date range
-date_range <- range(plot_data_date$date, na.rm = TRUE)
-
-# Create the number line plot
-templt <- ggplot(covariat_datq, aes(x = date)) +
-  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
-
-  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
-  scale_y_continuous(name = "", breaks = NULL) +
-  theme_classic() + xlab(NULL) +
-    labs(title = "BW Lower")
-```
-
-
-
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=1}
-# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
-plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
-
-plot_data_DO <- covariat_datq %>%
-    filter(site=="BWU") %>%
-  filter(!is.na(do.obs_m)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-plot_data_GPP <- covariat_datq %>%
-      filter(site=="BWU") %>%
-  filter(!is.na(GPP_mean)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-# Determine the date range
-date_range <- range(plot_data_date$date, na.rm = TRUE)
-
-# Create the number line plot
-templt_BWU <- ggplot(covariat_datq, aes(x = date)) +
-  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
-
-  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
-  scale_y_continuous(name = "", breaks = NULL) +
-  theme_classic() + xlab(NULL) +
-    labs(title = "BW Upper")
-```
-
-
-
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=1}
-# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
-plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
-
-plot_data_DO <- covariat_datq %>%
-    filter(site=="GBL") %>%
-  filter(!is.na(do.obs_m)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-plot_data_GPP <- covariat_datq %>%
-      filter(site=="GBL") %>%
-  filter(!is.na(GPP_mean)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-# Determine the date range
-date_range <- range(plot_data_date$date, na.rm = TRUE)
-
-# Create the number line plot
-templt_GBL <- ggplot(covariat_datq, aes(x = date)) +
-  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
-
-  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
-  scale_y_continuous(name = "", breaks = NULL) +
-  theme_classic() + xlab(NULL) +
-    labs(title = "GB Lower")
-```
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=1}
-# Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
-plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
-
-plot_data_DO <- covariat_datq %>%
-    filter(site=="GBU") %>%
-  filter(!is.na(do.obs_m)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-plot_data_GPP <- covariat_datq %>%
-      filter(site=="GBU") %>%
-  filter(!is.na(GPP_mean)) %>%
-  select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
-
-# Determine the date range
-date_range <- range(plot_data_date$date, na.rm = TRUE)
-
-# Create the number line plot
-templt_GBU <- ggplot(covariat_datq, aes(x = date)) +
-  #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
-
-  scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
-  scale_y_continuous(name = "", breaks = NULL) +
-  theme_classic() + xlab(NULL) +
-    labs(title = "GB Upper",
-       caption = "Black: DO Observed | Green: GPP Mean")
-```
-
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=4.5}
-### big grid 
-WY_n_grid2 <- ggarrange(
-  templt,
-  templt_BWU,
-  templt_GBL,
-  templt_GBU,
-  ncol = 1, nrow = 4)
-```
-
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Sup_Figures/metab_dat_resolution.png", plot = WY_n_grid2, width = 8.25, height = 4.25, units = "in")
-
-```
-
-
-
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=8}
-
-TS_plot <- ggplot(covariat_datq%>%mutate(DOY=yday(date))%>%filter(site=="BWL")%>%filter(water_year<2024), aes(x = DOY, y = PAR_surface, color =as.factor(water_year), shape = site)) +
-  geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
- # geom_line(aes(x = DOY, y=PAR_inc )) +
-    geom_line(aes(x = DOY, y=(Q_m*100))) +
- scale_color_viridis_d(option = "viridis") +
-  geom_point(size = 2, alpha = 0.7) +
-  #scale_color_manual(values = siteC_colors) +
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-  ylab(expression(PAR~at~stream~surface~(mu~mol~m^-2~s^-1))) +
-  theme_classic() + facet_grid(site~.)
-
-TS_plot
-
-
-
-TS_plot <- ggplot(covariat_datq%>%filter(water_year<2024), aes(x = Q_m, y = GPP_mean, color =as.factor(water_year), shape = site)) +
-  geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
- # geom_line(aes(x = DOY, y=PAR_inc )) +
- #scale_color_viridis_d(option = "viridis") +
-  geom_point(size = 2, alpha = 0.7) +
-  #scale_color_manual(values = siteC_colors) +
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-  #ylab(expression(PAR~at~stream~surface~(mu~mol~m^-2~s^-1))) +
-  theme_classic() + facet_grid(site~.)
-
-TS_plot
-```
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=8}
-
-covariat_datq_BWL_na <- covariat_datq %>%
-  filter(site=="BWL") %>%
-  drop_na(GPP_mean)
-# max flow: 2.76302
-# 3rd q: 0.18728
-# mean q: 0.23213
-
-covariat_datq_BWU_na <- covariat_datq %>%
-    filter(site=="BWU") %>%
-  drop_na(GPP_mean)
-
-# max flow: 5.989955
-# 3rd q: 0.278157
-# mean q: 0.665920
-
-
-
-covariat_datq_GBL_na <- covariat_datq %>%
-    filter(site=="GBL") %>%
-  drop_na(GPP_mean)
-
-# max flow: 0.62202
-# 3rd q: 0.03807
-# mean q: 0.04228
-
-
-covariat_datq_GBU_na <- covariat_datq %>%
-    filter(site=="GBU") %>%
-  drop_na(GPP_mean)
-
-# max flow: 0.298702
-# 3rd q: 0.037678
-# mean q: 0.029493
-
-summary(covariat_datq_GBU_na)
-
-```
-
-
-
-
-
-
-
-
-
-
-
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=8}
-
-## return DOY
-sandbox <- covariat_datq %>%
-  group_by(site, water_year) %>%
-  summarise(
-    max_surf_par = max(PAR_surface, na.rm = T),
-    max_Q_m = max(Q_m, na.rm = T))
-
-
-
-# summarize_peak_SWE_date <- function(data) {
-#   data %>%
-#     filter(lubridate::month(date) >= 1 & lubridate::month(date) <= 6) %>%
-#     arrange(site, date) %>%
-#     group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
-#     summarize(
-#       peak_SWE_date = date[which.max(snow_water_equivalent)],
-#       peak_SWE_day_of_year = lubridate::yday(date[which.max(snow_water_equivalent)]),
-#       max_SWE = max(snow_water_equivalent)
-#     ) %>%
-#     ungroup()
-# }
-# 
-# summarize_transition_to_zero <- function(data) {
-#   data %>%
-#     filter(lubridate::month(date) >= 4 & lubridate::month(date) <= 7) %>%
-#     arrange(site, date) %>%
-#     group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
-#     summarize(
-#       transition_to_zero = date[which.max(
-#         (daily_delta_SWE == 0 & lead(daily_delta_SWE == 0, default = FALSE) &
-#          lead(daily_delta_SWE == 0, n = 8, default = FALSE) &
-#          lag(daily_delta_SWE, default = 0) == 0) &
-#          (lead(daily_delta_SWE == 0, n = 8) & lag(daily_delta_SWE == 0, n = 5))
-#       )],
-#       .groups = 'drop',
-#       trans_day_of_year = lubridate::yday(transition_to_zero),
-#     ) %>%
-#     filter(!is.na(transition_to_zero))
-# }
-# 
-# summarize_peak_SPflow_date <- function(data) {
-#   data %>%
-#     filter(lubridate::month(date) >= 2 & lubridate::month(date) <= 8) %>%
-#     dplyr::group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
-#     dplyr::summarize(
-#       peak_SPFlow_date = date[which.max(scale_Q)],  # Date of the highest scale_Q
-#       peak_flow_day_of_year = lubridate::yday(date[which.max(scale_Q)]),  # DOY of the highest scale_Q
-#       max_SPFlow = max(scale_Q)  # Maximum scale_Q for the given year
-#     ) %>%
-#     ungroup()
-# }
-
-
-sum_peak_Q <- function(data) {
-  data %>%
-    arrange(site, date) %>%
-    group_by(site, water_year) %>%
-    ## filter for spring runoff
-    mutate(mon = month(date))%>%
-    filter(mon >1 & mon <8) %>%
-    summarize(
-      peak_Q_date = date[which.max(Q_m)],
-      peak_Q_day_of_year = lubridate::yday(date[which.max(Q_m)]),
-      max_Q = max(Q_m, na.rm=T)
-    ) %>%
-    ungroup()
-}
-
-
-summarize_peak_SWE_date <- function(data) {
-  data %>%
-    filter(lubridate::month(date) >= 1 & lubridate::month(date) <= 6) %>%
-    arrange(site, date) %>%
-    group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
-    summarize(
-      peak_SWE_date = date[which.max(snow_water_equivalent)],
-      peak_SWE_day_of_year = lubridate::yday(date[which.max(snow_water_equivalent)]),
-      max_SWE = max(snow_water_equivalent)
-    ) %>%
-    ungroup()
-}
-
-sum_par <- sum_peak_SUR_PAR(covariat_datq)
-
-sum_Q_df <- sum_peak_Q(covariat_datq)
-
-joint_WY<- sum_Q_df %>%
-left_join(sum_par, by=c("site", "water_year"))
-
-
-TS_plot <- ggplot(joint_WY%>%filter(water_year<2024), aes(y = peak_Q_day_of_year, x = max_PAR, color =as.factor(water_year), shape = site)) +
-  geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
- # geom_line(aes(x = DOY, y=PAR_inc )) +
- scale_color_viridis_d(option = "viridis") +
-  geom_point(size = 2, alpha = 0.7) +
-  #scale_color_manual(values = siteC_colors) +
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-  theme_classic() + facet_grid(site~.)
-
-TS_plot
-
-
-
-
-TS_plot <- ggplot(joint_WY%>%filter(water_year<2024), aes(y = peak_Q_day_of_year, x = max_PAR, color =as.factor(water_year), shape = site)) +
-  geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
- # geom_line(aes(x = DOY, y=PAR_inc )) +
- scale_color_viridis_d(option = "viridis") +
-  geom_point(size = 2, alpha = 0.7) +
-  #scale_color_manual(values = siteC_colors) +
-  scale_shape_manual(values = c(15, 0, 17, 2)) +
-  theme_classic() + facet_grid(site~.)
-
-TS_plot
-
-
-
-plot()
-
-```
