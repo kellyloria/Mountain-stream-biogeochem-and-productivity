@@ -104,7 +104,6 @@ date_df3$catch <- "BW"
 
 date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 
-### fxns:
 ## Fxn for water year:
 water_year <- function(data) {
   # Ensure the `date` column exists

@@ -584,7 +584,7 @@ KD_coeff_grid
 
 ```
 
-## Focal Question:
+### Focal Question:
 
 ### How does stream metabolism vary based on antecedent flow conditions, and nitrogen availability across small and large stream?
 
@@ -857,7 +857,7 @@ left_join(sum_melt, by=c("site", "WaterYear"))
 
 #### Rough time series plots to start getting at the antecedent flow conditions
 
-```{r, warning=F, size = 'small', echo=T, fig.width=10, fig.height=6}
+```{r, warning=F, size = 'small', echo=F,include=FALSE, fig.width=10, fig.height=6}
 
 TS_plot <- ggplot(covariat_datq%>%mutate(DOY=yday(date))%>%filter(site=="BWL")%>%filter(water_year<2024), aes(x = DOY, y = PAR_surface, color =as.factor(water_year), shape = site)) +
   geom_point(size = 2, alpha = 0.5, position = position_dodge(width = 0.3)) +
@@ -1201,7 +1201,7 @@ GBU_plot <- ggplot(covariat_cumsum_gb, aes(x = yday)) +
   geom_line(aes(y = PAR_surface * scale_factor_PAR), color = "goldenrod", linetype = "dotted") +
   
   labs(x = "Day of Water Year", color = "GPP Mean", 
-       title = "GB Lower") +
+       title = "GB Upper") +
   ylab(expression(Cumulative~GPP~(g~O[2]~m^-2~d^-1))) +
   theme_classic() + 
   facet_grid(year ~ ., scales = "free") 
@@ -1209,9 +1209,10 @@ GBU_plot
 
 ```
 
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
 ### Leaf area index 2021-2023
 
-```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
 plot <- ggplot(joint_WY %>% filter(water_year < 2024)) +
   geom_point(aes(x = water_year, y = peak_LAI_DOY, color = as.factor(water_year), shape = site), 
              size = 3, alpha = 0.95) +
@@ -1226,9 +1227,10 @@ plot
 
 ```
 
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
 ### Surface PAR 2021-2023
 
-```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
 plot <- ggplot(joint_WY %>% filter(water_year < 2024)) +
   geom_point(aes(x = water_year, y = peak_PAR_DOY, color = as.factor(water_year), shape = site), 
              size = 3, alpha = 0.95) +
@@ -1244,13 +1246,13 @@ plot
 
 ```
 
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
 ### Peak spring Q 2021-2023
 
-```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
 plot <- ggplot(joint_WY %>% filter(water_year < 2024)) +
   geom_point(aes(x = water_year, y = peak_Q_DOY, color = as.factor(water_year), shape = site), 
              size = 3, alpha = 0.95) +
-  
   geom_line(aes(x = water_year, y = peak_Q_DOY, group = site), 
             alpha = 0.95) +  # Ensure lines connect correctly
   
@@ -1262,12 +1264,860 @@ plot
 
 ```
 
-### Fxn to get at growing season as first day GPP is > 0.5
+### Trying to parse out why the GPP signal isn’t always decernamble: 
+
+#### Logistic flow plots
+
+Where 0 = DO/Temp data but either no metabolism estimate or GPP/ER = 0
+
+Where 1 = DO/Temp data and GPP > 0 and ER < 0
+
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
+
+BWL_logQ_df_gpp <- covariat_datq %>%
+  filter(site == "BWL") %>%
+  filter(date > as.Date("2021-04-28")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+    is.na(GPP_mean) ~ 0,
+
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(GPP_mean) & GPP_mean > 0.0001 ~ 1,
+
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+
+BWL_logQ_df_er <- covariat_datq %>%
+  filter(site == "BWL") %>%
+  filter(date > as.Date("2021-04-28")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+      is.na(ER_mean) ~ 0,
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(ER_mean) & ER_mean < -0.0001 ~ 1,
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+
+####
+BWU_logQ_df_gpp <- covariat_datq %>%
+  filter(site == "BWU") %>%
+  filter(date > as.Date("2021-06-29")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+    is.na(GPP_mean) & is.na(ER_mean) ~ 0,
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(GPP_mean) & GPP_mean > 0.01 ~ 1,
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+
+BWU_logQ_df_er <- covariat_datq %>%
+  filter(site == "BWU") %>%
+  filter(date > as.Date("2021-06-29")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+      is.na(ER_mean) ~ 0,
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(ER_mean) & ER_mean < -0.01 ~ 1,
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+
+####
+GBL_logQ_df_gpp <- covariat_datq %>%
+  filter(site == "GBL") %>%
+  filter(date > as.Date("2021-03-29")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+    is.na(GPP_mean) & is.na(ER_mean) ~ 0,
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(GPP_mean) & GPP_mean > 0.00001 ~ 1,
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+
+GBL_logQ_df_er <- covariat_datq %>%
+  filter(site == "GBL") %>%
+  filter(date > as.Date("2021-03-29")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+      is.na(ER_mean) ~ 0,
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(ER_mean) & ER_mean < -0.00001 ~ 1,
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+
+
+####
+GBU_logQ_df_gpp <- covariat_datq %>%
+  filter(site == "GBU") %>%
+  filter(date > as.Date("2021-03-29")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+    is.na(GPP_mean) & is.na(ER_mean) ~ 0,
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(GPP_mean) & GPP_mean > 0.0001 ~ 1,
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+
+GBU_logQ_df_er <- covariat_datq %>%
+  filter(site == "GBU") %>%
+  filter(date > as.Date("2021-03-29")) %>%
+  mutate(jday = yday(date)) %>%
+  dplyr::select(site, catch, date, jday, water_year, do.obs_m, wtr_m,
+                Q_m, depth_m, GPP_mean, ER_mean, K600_daily_mean) %>%
+  mutate(GPP_bi = case_when(
+    # GPP_bi = 0 when do.obs_m, wtr_m, Q_m, and depth_m are present AND metabolism estimates are missing
+    !is.na(do.obs_m) & !is.na(wtr_m) & !is.na(Q_m) & !is.na(depth_m) & 
+      is.na(ER_mean) ~ 0,
+    # GPP_bi = 1 when GPP_mean > 0 AND ER_mean < 0, ensuring both are not NA
+    !is.na(ER_mean) & ER_mean < -0.0001 ~ 1,
+    # Default case: set GPP_bi = 0
+    TRUE ~ 0  
+  ))
+
+```
+
+#### GPP and flow thresholds?
+
+```{r, warning=F, size = 'small', echo=T, include=T, fig.width=7, fig.height=3.75}
+
+BWL_logQ_plt <- ggplot(BWL_logQ_df_gpp %>% filter(water_year < 2025), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE, linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+  #facet_grid(water_year ~ ., scales = "free") +
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Lower")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=7, fig.height=3.75}
+BWU_logQ_plt <- ggplot(BWU_logQ_df_gpp %>% filter(water_year < 2024), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+ # facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Upper")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=7, fig.height=3.75}
+
+logQ_pltGBL <- ggplot(GBL_logQ_df_gpp %>% filter(water_year < 2025), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Lower")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=7, fig.height=3.75}
+
+logQ_plt_GBU <- ggplot(GBU_logQ_df_gpp %>% filter(water_year < 2025), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Upper")
+
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=9, fig.height=5}
+grid <- ggarrange(
+  BWL_logQ_plt,
+  BWU_logQ_plt,
+  logQ_pltGBL,
+  logQ_plt_GBU,
+    common.legend = T, 
+  legend = "bottom",
+  ncol = 2, nrow = 2)
+grid
+```
+
+Logistic growth lines color by year, individial points color by day of year (light= later)/
+
+#### ER and flow thresholds?
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=7, fig.height=3.75}
+
+BWL_logQ_plt <- ggplot(BWL_logQ_df_er %>% filter(water_year < 2025), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(ER[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+  #facet_grid(water_year ~ ., scales = "free") +
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Lower")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=7, fig.height=3.75}
+BWU_logQ_plt <- ggplot(BWU_logQ_df_er %>% filter(water_year < 2024), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(ER[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+ # facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Upper")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=7, fig.height=3.75}
+
+logQ_pltGBL <- ggplot(GBL_logQ_df_er %>% filter(water_year < 2025), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(ER[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Lower")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=7, fig.height=3.75}
+
+logQ_plt_GBU <- ggplot(GBU_logQ_df_er %>% filter(water_year < 2025), aes(x = log(Q_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) + # Custom colors for years
+
+  # Labels and theme
+  ylab(expression(ER[bi]~(0~or~1))) +
+  xlab(expression(log(Q[m]))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Upper")
+
+```
+
+
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=9, fig.height=5}
+grid <- ggarrange(
+  BWL_logQ_plt,
+  BWU_logQ_plt,
+  logQ_pltGBL,
+  logQ_plt_GBU,
+    common.legend = T, 
+  legend = "bottom",
+  ncol = 2, nrow = 2)
+grid
+```
+
+
+##### Table of flow thresholds where metabolism is unreasonable to model:
+
+```{r, echo=T, error=FALSE, warning=FALSE, include=T, message=FALSE}
+# Function to fit logistic regression and extract parameters
+fit_logistic_stats <- function(data) {
+  model <- glm(GPP_bi ~ log(Q_m), data = data, family = binomial)
+  coef_vals <- coef(model)  # Extract coefficients
+  
+  # Calculate steepness (slope) and midpoint
+  slope <- coef_vals[2]  
+  midpoint <- -coef_vals[1] / coef_vals[2]  
+
+  return(data.frame(
+    water_year = unique(data$water_year),
+    slope = slope,
+    midpoint = midpoint
+  ))
+}
+
+```
+
+ 
+#### BW Lower
+
+GPP:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+# Apply function to each water_year
+logistic_stats_gpp <- BWL_logQ_df_gpp %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+# View the results
+print(logistic_stats_gpp)
+
+```
+
+ER:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+
+logistic_stats_er <- BWL_logQ_df_er %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+
+
+print(logistic_stats_er)
+```
+
+
+#### BW Upper
+
+
+GPP:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+# Apply function to each water_year
+logistic_stats_gpp <- BWU_logQ_df_gpp %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+# View the results
+print(logistic_stats_gpp)
+
+```
+
+ER:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+
+logistic_stats_er <- BWU_logQ_df_er %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+
+
+print(logistic_stats_er)
+```
+
+
+#### GB Lower
+
+GPP:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+# Apply function to each water_year
+logistic_stats_gpp <- GBL_logQ_df_gpp %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+# View the results
+print(logistic_stats_gpp)
+
+```
+
+ER:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+
+logistic_stats_er <- GBL_logQ_df_er %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+
+
+print(logistic_stats_er)
+```
+
+
+#### GB Upper
+
+GPP:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+# Apply function to each water_year
+logistic_stats_gpp <- GBU_logQ_df_gpp %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+# View the results
+print(logistic_stats_gpp)
+
+```
+
+ER:
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, echo=FALSE, include=T, message=FALSE}
+
+logistic_stats_er <- GBU_logQ_df_er %>%
+  filter(water_year < 2025) %>%
+  group_by(water_year) %>%
+  group_split() %>%
+  lapply(fit_logistic_stats) %>%
+  bind_rows()
+
+
+print(logistic_stats_er)
+```
+
+
+#### Water temp thersholds? 
+
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, fig.width=7, fig.height=3.75}
+
+logQ_plt1 <- ggplot(BWL_logQ_df_gpp %>% filter(water_year < 2025), aes(x = log(wtr_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Temp))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Lower")
+
+
+
+logQ_plt2 <- ggplot(BWU_logQ_df_gpp %>% filter(water_year < 2025), aes(x = log(wtr_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Temp))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Upper")
+
+
+logQ_plt3 <- ggplot(GBL_logQ_df_gpp %>% filter(water_year < 2025), aes(x = log(wtr_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Temp))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Lower")
+
+logQ_plt4 <- ggplot(GBU_logQ_df_gpp %>% filter(water_year < 2025), aes(x = log(wtr_m), y = GPP_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Temp))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Upper")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=9, fig.height=5}
+grid <- ggarrange(
+  logQ_plt1,
+  logQ_plt2,
+  logQ_plt3,
+  logQ_plt4, 
+  common.legend = T, 
+  legend = "bottom",
+  ncol = 2, nrow = 2)
+grid
+```
+
+
+#### Water temp ~ Q thersholds? 
+```{r, echo=T, error=FALSE, warning=FALSE, include=T, message=FALSE}
+BWU_logQ_df_peak <- BWU_logQ_df_er %>%
+  group_by(water_year) %>%
+  filter(wtr_m == max(wtr_m, na.rm = TRUE)) %>%
+  summarise(jday_peak_temp = min(jday, na.rm = TRUE))  # Get the day of the year for peak temperature
+
+# Merge the peak temperature timing back to the original data
+BWU_logQ_df_metab <- BWU_logQ_df_gpp %>%
+  left_join(BWU_logQ_df_peak, by = "water_year")
+
+# Step 2: Plot logistic regression with peak temperature timing (jday_peak_temp) on the x-axis
+BWU_logistic_plt <- ggplot(BWU_logQ_df_metab %>% filter(water_year < 2025), aes(x = jday_peak_temp, y = GPP_bi)) +
+  # Points colored by Q_m (flow)
+  geom_point(aes(fill = log(Q_m)), color = "black", shape = 21, alpha = 0.9) +  
+  scale_fill_viridis_c(name = "log(Q_m + 1)") +  # Color by log(Q_m)
+  
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), 
+              method = "glm", method.args = list(family = "binomial"), 
+              se = FALSE) +
+  
+  # Custom colors for different years
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", 
+                                "2023" = "#003049", "2024" = "#d1ac00")) + 
+  
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab("Julian Day of Peak Temperature") +
+  theme_classic() +
+  
+  # Facet by water year
+  facet_grid(water_year ~ ., scales = "free") +
+  
+  # Adjust legends
+  guides(fill = guide_colorbar(title = "log(Q_m + 1)"), 
+         color = guide_legend(title = "Water Year"))
+
+BWU_logistic_plt
+
+
+```
+
+
+
+##### Based on logistic growth
+Flow thresholds based on midpoint in metabolism logistic plots 
+```{r, echo=T, error=FALSE, warning=FALSE, include=T, message=FALSE}
+
+BWL_logQ_df <- BWL_logQ_df_gpp %>%
+  mutate(Q_bi = case_when(
+    (water_year == 2021 & Q_m > 1.27) ~ 0,
+    (water_year == 2022 & Q_m > 0.10) ~ 0,
+    (water_year == 2023 & Q_m > 0.007) ~ 0,
+    (water_year == 2024 & Q_m > 0.154) ~ 0,
+    (water_year == 2021 & Q_m < 1.27) ~ 1,
+    (water_year == 2022 & Q_m < 0.10) ~ 1,
+    (water_year == 2023 & Q_m < 0.007) ~ 1,
+    (water_year == 2024 & Q_m < 0.154) ~ 1,
+    TRUE ~ 0
+  ))
+
+
+
+
+BWU_logQ_df <- BWU_logQ_df_gpp %>%
+  mutate(Q_bi = case_when(
+    (water_year == 2021 & Q_m > 0.015) ~ 0,
+    (water_year == 2022 & Q_m > 0.016) ~ 0,
+    (water_year == 2023 & Q_m > 0.940) ~ 0,
+    (water_year == 2024 & Q_m > 0.037) ~ 0,
+    (water_year == 2021 & Q_m < 0.015) ~ 1,
+    (water_year == 2022 & Q_m < 0.016) ~ 1,
+    (water_year == 2023 & Q_m < 0.940) ~ 1,
+    (water_year == 2024 & Q_m < 0.037) ~ 1,
+    TRUE ~ 0
+  ))
+
+
+
+GBL_logQ_df <- GBL_logQ_df_gpp %>%
+  mutate(Q_bi = case_when(
+    (water_year == 2021 & Q_m > 0.161) ~ 0,
+    (water_year == 2022 & Q_m > 0.161) ~ 0,
+    (water_year == 2023 & Q_m > 0.161) ~ 0,
+    (water_year == 2024 & Q_m > 0.0015) ~ 0,
+    (water_year == 2021 & Q_m < 0.161) ~ 1,
+    (water_year == 2022 & Q_m < 0.161) ~ 1,
+    (water_year == 2023 & Q_m < 0.161) ~ 1,
+    (water_year == 2024 & Q_m < 0.0015) ~ 1,
+    TRUE ~ 0
+  ))
+
+
+GBU_logQ_df <- GBU_logQ_df_gpp %>%
+  mutate(Q_bi = case_when(
+    (water_year == 2021 & Q_m >  0.0323) ~ 0,
+    (water_year == 2022 & Q_m >  0.0113) ~ 0,
+    (water_year == 2023 & Q_m > 0.0117) ~ 0,
+    (water_year == 2024 & Q_m > 0.0539) ~ 0,
+    (water_year == 2021 & Q_m <  0.0323) ~ 1,
+    (water_year == 2022 & Q_m <  0.0113) ~ 1,
+    (water_year == 2023 & Q_m < 0.0117) ~ 1,
+    (water_year == 2024 & Q_m < 0.0539) ~ 1,
+    TRUE ~ 0
+  ))
+```
+
+
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE, fig.width=7, fig.height=3.75}
+
+logQ_plt1 <- ggplot(BWL_logQ_df %>% filter(water_year < 2025), aes(x = (wtr_m), y = Q_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  ylab(expression(GPP[bi]~(0~or~1))) +
+  xlab(expression(log(Temp))) +
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Lower")
+
+
+
+logQ_plt2 <- ggplot(BWU_logQ_df %>% filter(water_year < 2025), aes(x = (wtr_m), y = Q_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "BW Upper")
+
+
+logQ_plt3 <- ggplot(GBL_logQ_df %>% filter(water_year < 2025), aes(x = (wtr_m), y = Q_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Lower")
+
+logQ_plt4 <- ggplot(GBU_logQ_df %>% filter(water_year < 2025), aes(x = (wtr_m), y = Q_bi)) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "glm", method.args = list(family = "binomial"), se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  theme_classic() +
+#  facet_grid(water_year ~ ., scales = "free") +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  +
+  labs(caption = "GB Upper")
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=9, fig.height=5}
+grid <- ggarrange(
+  logQ_plt1,
+  logQ_plt2,
+  logQ_plt3,
+  logQ_plt4, 
+  common.legend = T, 
+  legend = "bottom",
+  ncol = 2, nrow = 2)
+grid
+```
+
+
+
+###
+
+Q ~ K600 relationships
+
+```{r, warning=F, size = 'small', echo=F, include=T, fig.width=11, fig.height=9}
+
+logQ_plt1 <- ggplot(covariat_datq %>% filter(water_year < 2025) %>%mutate(jday=yday(date)), aes(x = log(wtr_m), y = log(K600_daily_mean))) +
+  # Points colored by GPP_mean
+  geom_point(aes(fill = jday), color = "black", shape = 21, alpha = 0.9) +  
+  #scale_fill_gradient(low = "#b3d4a9", high = "#284a31") +  # Gradient for GPP_mean
+  scale_fill_viridis_c(name="day of year") +  # Gradient for GPP_mean
+  # Logistic regression curve colored by water_year
+  geom_smooth(aes(color = as.factor(water_year)), method = "lm", se = FALSE,  linewidth=0.5) +
+  scale_color_manual(values = c("2021" = "#D62828", "2022" = "#F77F00", "2023" = "#003049", "2024" = "#d1ac00")) +
+  # Labels and theme
+  theme_classic() +
+ facet_wrap(water_year ~ site) +
+  # Separate legends for points and lines
+  guides(fill = guide_colorbar(title = "Day of Year"), 
+         color = guide_legend(title = "Water Year"))  
+
+logQ_plt1
+```
+
 
 
 
 
 ### Code sandbox:
+
+
 
 ```{r, echo=FALSE, error=FALSE, warning=FALSE, include=T, message=FALSE}
 # library(ggplot2)
