@@ -448,7 +448,8 @@ snowflow_dat_sum <- snowflow_dat%>%
   summarise(Total_SWE = max(accum_SWE, na.rm=T),
             Water_yield = max(accum_Qm3D, na.rm = T),
             Max_SWE = max(snow_water_equivalent, na.rm=T),
-            Total_ppt = max(precipitation_cumulative, na.rm=T)
+            Total_ppt = max(precipitation_cumulative, na.rm=T),
+            scale_pk_Q = max(scale_Q, na.rm = T)
             )
 
 summary(snowflow_dat_sum)
@@ -464,6 +465,23 @@ snowflow_HA <- snowflow_dat_sum%>%
             )
 
 snowflow_HA
+
+
+snowflow_HA1 <- snowflow_dat_sum%>%
+  filter(WaterYear>2020 & WaterYear<2024) %>%
+  mutate(WY_lab = case_when(
+    WaterYear %in% c(2021, 2022) ~ "dry",
+    WaterYear %in% c(2023) ~ "wet",
+    TRUE ~ NA_character_  )) %>%
+    group_by(site,WY_lab) %>%
+  summarise(mean_SWE_acc = mean(Total_SWE, na.rm=T),
+            mean_Water_yield = mean(Water_yield, na.rm = T),
+            mean_SWE = mean(Max_SWE, na.rm = T),
+            mean_ppt_acc = mean(Total_ppt, na.rm = T),
+            m_pk_Q= mean(scale_pk_Q, na.rm=T)
+            )
+
+snowflow_HA1
 
 ```
 
@@ -522,6 +540,32 @@ ppt_accum_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Total_ppt*0.0
 
 
 
+
+```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
+
+ppt_accum_plots <- ggplot(snowflow_dat_sum, aes(x = WaterYear, y = Total_ppt*0.001, color = site, shape=site)) +
+  annotate("rect", xmin = -Inf, xmax = 2020.5, ymin = -Inf, ymax = Inf, fill = "grey80", alpha = 0.3) +
+annotate("rect", xmin = 2024.5, xmax = Inf, ymin = -Inf, ymax = Inf, fill = "grey80", alpha = 0.3) +
+  geom_point(size = 1.5, alpha = 0.95, position = position_dodge(width = 0.1)) +
+  geom_line(position = position_dodge(width = 0.1))+
+    geom_hline(yintercept = 1718.*0.001, col = "#054fb9", lty = 2) + 
+  geom_hline(yintercept = 844*0.001, col = "#DD6E42", lty = 2) + 
+  theme_bw() + 
+ # geom_vline(xintercept = 2021.5, linetype = "dotted", color = "grey30") +
+#    geom_vline(xintercept = 2023.5, linetype = "dotted", color = "grey30") +
+  ylab(expression("PPT"~(m~y^-1))) +
+  xlab(NULL) + scale_color_manual(values = site_colors) +
+  theme(legend.position =  "none") +
+        scale_shape_manual(name = "Shore",
+                     values = c("BWL" = 19, 
+                                "GBL" = 17)) +
+        scale_x_continuous(breaks = seq(floor(min(snowflow_dat_sum$WaterYear)), ceiling(max(snowflow_dat_sum$WaterYear)), by = 1), labels = function(x) as.character(round(x)))
+  
+  
+  
+```
+
+
 ```{r, warning=F, echo=F,include=T, fig.width=9.5, fig.height=6}
 grid <- ggarrange(ppt_accum_plots,
                   WYeild_acc_plots, 
@@ -540,6 +584,11 @@ grid
 
 ```
 
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Hydro_panel_long.png", plot = ppt_accum_plots, width = 12, height = 1.5, units = "in")
+
+```
 
 ### 20 years of SWE accumulation and water yield  
 

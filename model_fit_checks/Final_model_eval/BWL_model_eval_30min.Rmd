@@ -1,7 +1,7 @@
 ---
-title: 'Streammetabolizer output for BWL'
+title: 'Streammetabolizer output for BWL- 30 minute data'
 author: "Kelly Loria"
-date: "2025-02-06"
+date: "2025-03-27"
 output:
    html_document:
     theme: united
@@ -184,7 +184,7 @@ measured_K$source <- ("measured")
 
 
 
-met.full <- read_csv("./Full/BWL_Full_2025-02-06_daily.csv") %>%
+met.full <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/BWL_k600/BWL_Full_30_2025-03-27_daily.csv") %>%
   mutate(year = year(date))%>%
   mutate(jday = yday(date))%>%
   mutate(mon = month(date))%>%
@@ -193,7 +193,7 @@ met.full <- read_csv("./Full/BWL_Full_2025-02-06_daily.csv") %>%
 
 met.full$source <- ("normal_mod")
 
-fits.full <- read_csv("./Full/BWL_Full_2025-02-06_errors.csv_mod_and_obs_DO.csv") %>%
+fits.full <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/BWL_k600/BWL_Full_30_2025-03-27_errors.csv_mod_and_obs_DO.csv") %>%
   mutate(week = week(solar.time))%>%
   mutate(jday = yday(solar.time)) %>%
      mutate(lab = "Full")%>%

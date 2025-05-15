@@ -387,6 +387,35 @@ covariat_datq <- covariat_datq%>%
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+# temp summary save file 
+
+
+light_mod_df_day1 <- water_year(light_mod_df_day)
+
+light_data_HA1 <- light_mod_df_day1%>%
+  #filter(water_year>2020 & water_year<2024) %>%
+  mutate(catch = case_when(
+    site== "BWL"~ "BW",
+    site== "BWU"~ "BW",
+    site== "GBL"~ "GB",
+    site== "GBU"~ "GB",
+    TRUE ~ NA_character_  )) %>%
+  # mutate(cum_PAR_surface = cumsum(PAR_surface)) %>%
+  group_by(catch) %>%
+  summarise(mean_LAI = mean(LAI, na.rm=T),
+            mean_veg_shade = mean(veg_shade, na.rm = T),
+            mean_PAR_surface = mean(PAR_surface, na.rm = T),
+            min_PAR_surface = min(PAR_surface, na.rm = T),
+            max_PAR_surface = max(PAR_surface, na.rm = T),
+            )
+
+
+light_data_HA1
+
+
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 
 covariat_datq$AFDM_ugcm2 <- (covariat_datq$AFDM_mgcm2 *1000)
 #hist(covariat_datq$AFDM_ugcm2 )

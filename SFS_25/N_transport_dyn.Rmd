@@ -156,8 +156,8 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 # pCode_temp <- "00010"
 # 
 # # Set the start date to "1980-01-01" and end date to today (current date)
-# start.date <- "2021-04-20"
-# end.date <- "2024-08-10"
+# start.date <- "2021-04-01"
+# end.date <- "2024-10-10"
 # 
 # HRflow_data_BW <- readNWISuv(
 #   siteNumbers = siteNo_BW,
@@ -171,10 +171,10 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 #     wtr_USGS = "X_.AquaTroll._00010_00000",
 #     stageF = "X_00065_00000"
 #   ) %>%
-#   mutate(datetime = as.POSIXct(datetime, tz = "UTC") %>% 
+#   mutate(datetime = as.POSIXct(datetime, tz = "UTC") %>%
 #            with_tz("America/Los_Angeles")) # Convert to Pacific Time
 # 
-# ### mutate for SI units: 
+# ### mutate for SI units:
 # HRflow_BWL <- HRflow_data_BW %>%
 #   mutate(
 #     dischargeCMS= c(dischargeCFS*0.0283168),
@@ -183,7 +183,7 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 #     adjusted_dischargeCMS = c(dischargeCMS * 0.647),
 #     adjusted_depth =  c(stage_m * 0.233),
 #     site="BWL"
-#   ) 
+#   )
 # 
 # HRflow_BWU <- HRflow_data_BW %>%
 #   mutate(
@@ -192,10 +192,10 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 #     stage_m= c(stageF*0.3048),
 #     adjusted_dischargeCMS = c(dischargeCMS * 0.444),
 #     adjusted_depth =  c(stage_m * 0.503),
-#     site="BWU") 
+#     site="BWU")
 # 
 # 
-# # depth slope 0.233
+# #depth slope 0.233
 # 
 # 
 # ##==========================
@@ -224,10 +224,10 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 #     wtr_USGS = "X_00010_00000",
 #     stageF = "X_00065_00000"
 #   ) %>%
-#   mutate(datetime = as.POSIXct(datetime, tz = "UTC") %>% 
+#   mutate(datetime = as.POSIXct(datetime, tz = "UTC") %>%
 #            with_tz("America/Los_Angeles")) # Convert to Pacific Time
 # 
-# ### mutate for SI units: 
+# ### mutate for SI units:
 # HRflow_GBL <- HRflow_data_GB %>%
 #   mutate(
 #     dischargeCMS= c(dischargeCFS*0.0283168),
@@ -235,10 +235,10 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 #     stage_m= c(stageF*0.3048),
 #     adjusted_dischargeCMS = c(dischargeCMS * 0.812),
 #     adjusted_depth =  c(stage_m * 0.979),
-#      site="GBL") 
+#      site="GBL")
 # 
 # 
-# ### mutate for SI units: 
+# ### mutate for SI units:
 # HRflow_GBU <- HRflow_data_GB %>%
 #   mutate(
 #     dischargeCMS= c(dischargeCFS*0.0283168),
@@ -246,7 +246,7 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 #     stage_m= c(stageF*0.3048),
 #     adjusted_dischargeCMS = c(dischargeCMS * 1.104),
 #     adjusted_depth =  c(stage_m * 0.357),
-#      site="GBU") 
+#      site="GBU")
 # 
 # Flow_df <- rbind(HRflow_BWL, HRflow_BWU, HRflow_GBL, HRflow_GBU)
 # 
@@ -1033,19 +1033,19 @@ covariat_NS_ND <- ndyn %>%
   
 
 
-## adjust the demand y axis to be from 0 to 1 
-N_ratio_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(x = log(NO3_supply+1), y = log(Ndemand+1), color = as.factor(water_year), shape=site)) +
-  geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
-    geom_point( aes(x = log(NH4_supply+1), y = Ndemand, color = as.factor(water_year)),
-                size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
-  geom_abline(slope = 1, intercept = 0, color = "black") +  # 1:1 line
-    scale_color_viridis_d(option = "viridis",  name = "Day of year") +
-      scale_shape_manual(values = c(15,0,17,2)) +
-  xlim(0,1) +
- # ylim(0, 1) +
-   ylab(expression(log(Nitrogen~demand+1)~(g~N~m^-2~d^-1))) +
-     xlab(expression(log(Nitrogen~supply+1)~(g~N~m^-2~d^-1))) +
-  theme_classic()
+# ## adjust the demand y axis to be from 0 to 1 
+# N_ratio_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(x = log(NO3_supply+1), y = log(Ndemand+1), color = as.factor(water_year), shape=site)) +
+#   geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
+#     geom_point( aes(x = log(NH4_supply+1), y = Ndemand, color = as.factor(water_year)),
+#                 size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
+#   geom_abline(slope = 1, intercept = 0, color = "black") +  # 1:1 line
+#     scale_color_viridis_d(option = "viridis",  name = "Water year") +
+#       scale_shape_manual(values = c(15,0,17,2)) +
+#   xlim(0,1) +
+#  # ylim(0, 1) +
+#    ylab(expression(log(Nitrogen~demand+1)~(g~N~m^-2~d^-1))) +
+#      xlab(expression(log(Nitrogen~supply+1)~(g~N~m^-2~d^-1))) +
+#   theme_classic()
 
 
 N_ratio_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(x = log(NO3_supply+1), y = log(Ndemand+1), color = as.factor(water_year), shape=site)) +
@@ -1053,8 +1053,8 @@ N_ratio_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(x = log(NO
     geom_point( aes(x = log(NH4_supply+1), y = Ndemand, color = as.factor(water_year)),
                 size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
   geom_abline(slope = 1, intercept = 0, color = "black") +  # 1:1 line
-    scale_color_viridis_d(option = "viridis",  name = "Day of year") +
-      scale_shape_manual(values = c(15,0,17,2)) +
+    scale_color_viridis_d(option = "viridis",  name = "Water year") +
+      scale_shape_manual(values = c(15,0,17,2), name = "Site") +
   xlim(0,1) +
  # ylim(0, 1) +
    ylab(expression(log(Nitrogen~demand+1)~(g~N~m^-2~d^-1))) +
@@ -1066,10 +1066,11 @@ NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(y = log(N
   geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
   geom_point( aes(y = log(NH4_supply_new+1), x = jday, color = as.factor(water_year), shape=site), 
                 size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
-    scale_color_viridis_d(option = "viridis", name = "Day of year") +  # Use _c for continuous data
-  xlim(15,360) +
-  #  ylim(0,5) +
+    scale_color_viridis_d(option = "viridis", name = "Water year") +  # Use _c for continuous data
+  xlim(15,360) + ylim(0,1.50) +
    xlab(NULL) +
+ # geom_smooth(se=F) +
+   # geom_smooth(aes(group = as.factor(water_year)), se = FALSE, linewidth = 1) +
      ylab(expression(log(Supply+1)~(g~N~m^-2~d^-1))) +
   theme_classic() +
   scale_shape_manual(values = c(15,0,17,2)) +
@@ -1080,9 +1081,9 @@ high_Ndemand_threshold <- 0.075
 
 N_demand_plot1 <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(y = log(Ndemand+1), x = jday, color = as.factor(water_year), shape = site)) +
   geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.8)) +
-  scale_color_viridis_d(option = "viridis", name = "Day of year") +  # Use _c for continuous data
-  xlab("Day of year") +
-  xlim(15, 360) + ylim(0,2) +
+  scale_color_viridis_d(option = "viridis", name = "Water year") +  # Use _c for continuous data
+  xlab("Day of year") + 
+  xlim(15, 360) + ylim(0,1.50) +
  # geom_hline(yintercept = high_Ndemand_threshold, linetype = "dashed", color = "grey25") +
   scale_shape_manual(values = c(15, 0, 17, 2)) +
   ylab(expression(log(Demand+1)~(g~N~m^-2~d^-1))) +
@@ -1107,21 +1108,35 @@ n_s_grid <- ggarrange(
 )
 
 
+
+N_ratio_plots <- N_ratio_plots + 
+  theme(
+    aspect.ratio = 1, 
+    plot.margin = margin(10, 20, 10, 20),
+    legend.position = "bottom"
+  ) +
+  guides(
+    shape = guide_legend(nrow = 2),  # Shape legend on first line
+    color = guide_legend(nrow = 2)   # Color legend on second line
+  )
+
 Ndyn_grid <- ggarrange(
   N_ratio_plots,
   n_s_grid,
   ncol = 2, nrow = 1,
-    labels = c("a", ""),
-  common.legend = TRUE, 
-   widths = c(1.75, 2.25),
-  legend = "bottom")
+  labels = c("a", ""),
+  #common.legend = TRUE, 
+  #legend = "bottom",
+  widths = c(1.2, 1.6)
+)
 
 Ndyn_grid
+
 
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nsupply_grid_CH1_v2.png", plot = Ndyn_grid, width = 9.25, height = 5.5, units = "in")
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nsupply_grid_CH1_v2.png", plot = Ndyn_grid, width = 10.5, height = 5.5, units = "in")
 
 ```
 
@@ -1132,7 +1147,8 @@ n_df <- n_up%>%
   filter(success=="yes") %>%
   mutate(
          Uadd_g_m2_min = c(Uadd_ug_L_min/1000000),
-         Uadd_g_m2_D = c(Uadd_g_m2_min*1440)) 
+         Uadd_g_m2_D = c(Uadd_g_m2_min*1440),
+         Vf_mm_min=c(Vf_m_min)*1000) 
 
 uptake <- n_df %>%
   pivot_wider(
@@ -1141,6 +1157,12 @@ uptake <- n_df %>%
     names_prefix = "Uadd_g_m2_D_") %>%
   dplyr::select(site, date, Uadd_g_m2_D_NH3, Uadd_g_m2_D_NO3)
 
+
+uptake2 <- n_df %>%
+  pivot_wider(
+    names_from = method, 
+    values_from = c(Uadd_g_m2_D, Vf_mm_min)
+  ) 
 summary(uptake)
 
 uptake_df <-  covariat_NS_ND%>%
@@ -1929,3 +1951,26 @@ reach_rent_wide1
 
     -   NO~3~ : Decreased by 42% at BW, by 103 % at GB
     -   NH~4~ : Decreased by 151% at BW, by 100 % at GB
+
+
+
+#### How do these Vf and U compare to Vicent et al. ? 
+(Tank et al.?)
+0-50 vf so we have estimates above that
+
+0-8 Uadd
+
+```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
+
+
+hist1<- ggplot(uptake2%>%filter(Vf_mm_min_NH3<200), aes(x = Vf_mm_min_NH3)) +
+  geom_histogram(aes(fill = site,  color = site),  position = "dodge", alpha = 0.7, bins = 20) +  scale_color_manual(values = site_colors) + scale_fill_manual(values = site_colors) + theme_minimal()
+
+hist1
+
+hist2<- ggplot(uptake2%>%filter(Vf_mm_min_NO3<200), aes(x = Vf_mm_min_NO3)) +
+  geom_histogram(aes(fill = site,  color = site),  position = "dodge", alpha = 0.7, bins = 20) +  scale_color_manual(values = site_colors) + scale_fill_manual(values = site_colors) + theme_minimal()
+hist2
+
+
+```
