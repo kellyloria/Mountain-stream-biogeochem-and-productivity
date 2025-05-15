@@ -1,7 +1,7 @@
 ---
 title: 'Streammetabolizer output for BWU'
 author: "Kelly Loria"
-date: "2025-02-04"
+date: "2025-03-28"
 output:
    html_document:
     theme: united
@@ -68,14 +68,14 @@ measured_K <- read.csv("./ArN_NEON_K_BWL_notpooled_241204.csv")%>%
 measured_K$source <- ("measured")
 
 
-met.full <- read_csv("./BWU_Full_2025-02-04_daily.csv") %>%
+met.full <- read_csv("./BWU_Full_2025-03-28_daily.csv") %>%
   mutate(year = year(date))%>%
   mutate(jday = yday(date))%>%
   mutate(mon = month(date))%>%
    mutate(lab = "Full")%>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean)  
 
-fits.full <- read_csv("./BWU_Full_2025-02-04_errors.csv_mod_and_obs_DO.csv") %>%
+fits.full <- read_csv("./BWU_Full_2025-03-28_errors.csv_mod_and_obs_DO.csv") %>%
   mutate(week = week(solar.time))%>%
   mutate(jday = yday(solar.time)) %>%
      mutate(lab = "Full")%>%
@@ -565,7 +565,6 @@ excluded_summary %>%
   row_spec(10:11, bold=T, italic = TRUE, font_size = 16)  
 
 ```
-
 
 
 #### Session info
