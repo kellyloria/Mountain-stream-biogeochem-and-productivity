@@ -719,9 +719,164 @@ excluded_summary %>%
 
 
 
+```{r, warning=F, size = 'small', echo=T, fig.align = "center", fig.width=8, fig.height = 5}
+
+new_df_clean <- met_class %>%
+  filter(clean_all==T)
+
+KER_cor <- round(cor(new_df_clean$ER_daily_mean, new_df_clean$K600_daily_mean, use = "complete.obs"),3)
+print(KER_cor)
+
+```
+
+
+```{r, warning=F, size = 'small', echo=T, fig.align = "center", fig.width=8, fig.height = 5}
+
+KGPP_cor <-round(cor(new_df_clean$GPP_daily_mean, new_df_clean$K600_daily_mean, use = "complete.obs"),3)
+print(KGPP_cor)
+
+```
+
+
+```{r, warning=F, size = 'small', echo=T, fig.align = "center", fig.width=8, fig.height = 5}
+
+GPP_ER_cor <-round(cor(new_df_clean$GPP_daily_mean, (new_df_clean$ER_daily_mean*-1), use = "complete.obs"),3)
+print(GPP_ER_cor)
+
+```
+
+
+
+
+```{r, warning=F, size = 'small', echo=FALSE, fig.align = "center", fig.width=8, fig.height = 5}
+
+library(dplyr)
+library(ggplot2)
+library(viridis)
+library(cowplot)
+library(lubridate)
+
+
+
+mod.env.full <- input_dat %>%
+  mutate(date = as.Date(solar.time)) %>%
+  group_by(date) %>%
+  summarise(
+    DO.obs     = mean(DO.obs, na.rm = TRUE),
+    DO.sat     = mean(DO.sat, na.rm = TRUE),
+    depth      = mean(depth, na.rm = TRUE),
+    temp.water = mean(temp.water, na.rm = TRUE),
+    light      = mean(light, na.rm = TRUE),
+    discharge  = mean(discharge, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+new_df_clean <- new_df_clean %>%
+  mutate(
+    date = as.Date(date),
+    water_year = year(date %m+% months(3))
+  )
+
+plot_dat <- new_df_clean %>%
+  left_join(mod.env.full, by = "date")
+
+base_theme <- theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(linewidth = 0.2, colour = "grey90"),
+    legend.title = element_text(size = 11),
+    legend.position = "right"
+  )
+
+col_scale <- scale_color_viridis_d(
+  name = "Water year",
+  option = "viridis",   # better for time gradients
+  end = 0.95
+)
+
+
+gpp_unit  <- expression(paste("GPP (g O"[2], " ", m^{-2}, " ", d^{-1}, ")"))
+er_unit   <- expression(paste("ER (g O"[2], " ", m^{-2}, " ", d^{-1}, ")"))
+k600_unit <- expression(paste(K[600], " (m ", d^{-1}, ")"))
+q_unit    <- expression(paste("Discharge (m"^3, " ", s^{-1}, ")"))
+
+
+ker <- ggplot(plot_dat,
+              aes(x = K600_daily_mean,
+                  y = ER_daily_mean,
+                  color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(x = k600_unit, y = er_unit) +
+  col_scale +
+  base_theme
+
+kgpp <- ggplot(plot_dat,
+               aes(x = GPP_daily_mean,
+                   y = K600_daily_mean,
+                   color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(x = gpp_unit, y = k600_unit) +
+  col_scale +
+  base_theme
+
+k.q <- ggplot(plot_dat,
+              aes(x = discharge,
+                  y = K600_daily_mean,
+                  color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(x = q_unit, y = k600_unit) +
+  col_scale +
+  base_theme
+
+ER_gpp <- plot_dat %>%
+  mutate(negER = -ER_daily_mean) %>%
+  ggplot(aes(x = negER,
+             y = GPP_daily_mean,
+             color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(
+    x = expression(paste("\u2212ER (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")),
+    y = gpp_unit
+  ) +
+  col_scale +
+  base_theme
+
+
+legend <- cowplot::get_legend(ker)
+
+p1 <- cowplot::plot_grid(
+  ker + theme(legend.position = "none"),
+  kgpp + theme(legend.position = "none"),
+  k.q + theme(legend.position = "none"),
+  ER_gpp + theme(legend.position = "none"),
+  labels = c("A","B","C","D"),
+  ncol = 2
+)
+
+final_plot <- cowplot::plot_grid(p1, legend, rel_widths = c(1, 0.18))
+final_plot
+
+
+```
+
 #### Session info
 
 ```{r, warning=F, size = 'small', echo=FALSE, fig.width=5, fig.height=12}
 pander::pander(sessionInfo())
+```
+
+
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/BWL_model_fits.png", plot = final_plot, width = 8, height = 6, units = "in")
 
 ```
+
