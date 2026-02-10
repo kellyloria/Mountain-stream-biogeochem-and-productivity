@@ -34,7 +34,7 @@ knitr::knit_hooks$set(chunk = function(x, options) {
 ```{r, echo = F, message = F, include=FALSE}
 ### Packages
 #setwd("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/BWL_k600/")
-lapply(c("plyr","dplyr","ggplot2","cowplot",
+lapply(c("dplyr","ggplot2","cowplot",
          "lubridate","tidyverse", "reshape2", "ggpubr", "ggpattern", "broom.mixed",
          "glmmTMB",
          "lme4", "lmerTest", "MuMIn", "PerformanceAnalytics", "car"), require, character.only=T)
@@ -254,7 +254,7 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 #   mutate(date= as.Date(datetime))%>%
 #   group_by(site, date) %>%
 #   dplyr::select(!datetime)%>%
-#   summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
+#  dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
 #   mutate(Q_m = adjusted_dischargeCMS,
 #          depth_m = adjusted_depth)%>%
 #   dplyr::select(site, date, Q_m, depth_m)
@@ -269,6 +269,7 @@ date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 ```{r, warning=F, size = 'small', echo=FALSE, include=F}
 ### Read in all data
 ####
+library(dplyr)
 date_datf <- water_year(date_datf)
 
 covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat_AFDM.rds") %>%
@@ -284,21 +285,27 @@ covariat_dat <- covariat_dat %>%
     left_join(flow_df, by=c("date", "site"))
 
 
+
+
+
 bg_nuts <- readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
-  filter(location=="stream") %>%
-    mutate(NO3_mgL_dl = if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl))%>%
-    mutate(NH4_mgL_dl=if_else(NH4_mgL_dl < 0.001, 0.001, NH4_mgL_dl))%>%
-    mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl)) %>%
-  mutate(PO4_ugL_dl=if_else(DOC_mgL_dl < 0.25, 0.125, DOC_mgL_dl)) %>%
-  group_by(site, shore, date, depth, location, substrate) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+ dplyr::filter(location == "stream") %>%
+  dplyr::mutate(
+    NO3_mgL_dl = dplyr::if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl),
+    NH4_mgL_dl = dplyr::if_else(NH4_mgL_dl < 0.001, 0.001, NH4_mgL_dl),
+    PO4_ugL_dl = dplyr::if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl),
+    DOC_mgL_dl = dplyr::if_else(DOC_mgL_dl < 0.25, 0.125, DOC_mgL_dl)
+  ) %>%
+  dplyr::group_by(site, shore, date, depth, location, substrate) %>%
+  dplyr::summarise(dplyr::across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
+
 
 
 ##### pivot wider 
 bg_nuts_wide <- bg_nuts %>%
   dplyr::select(site, date, substrate, NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill) %>%
   group_by(site, date,substrate) %>% 
-  summarise(across(c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), mean, na.rm = TRUE), .groups = "drop") %>% 
+  dplyr::summarise(across(c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), mean, na.rm = TRUE), .groups = "drop") %>% 
   pivot_wider(names_from = substrate, values_from = c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), names_sep = "_")
 
 ######
@@ -322,12 +329,16 @@ covariat_datq <- covariat_datq%>%
 ## bring in SPC data 
 ### missing 2024 BW SPC
 SPC_BWL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWL_SPCv2.rds") %>%
-  filter(datetime>as.POSIXct("2021-04-29 24:00:00"))
+ dplyr::filter(datetime>as.POSIXct("2021-04-29 24:00:00"))
 SPC_BWL$site <- "BWL"
+
+
 SPC_BWU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWU_SPCv2.rds")
 SPC_BWU$site <- "BWU"
+
 SPC_GBL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBL_SPCv2.rds")
 SPC_GBL$site <- "GBL"
+
 SPC_GBU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBU_SPCv2.rds")
 SPC_GBU$site <- "GBU"
 
@@ -347,7 +358,7 @@ SPC_dat_day <- SPC_dat %>%
 #hist(SPC_dat_day$SPC_sd)
 
 SPC_datD <- SPC_dat_day %>%
-  filter(wt_sd<4.1 & SPC_sd <35)
+ dplyr::filter(wt_sd<4.1 & SPC_sd <35)
   
 #hist(SPC_datD$wt_sd)
 #hist(SPC_datD$SPC_sd)
@@ -358,10 +369,10 @@ covariat_datq <- covariat_datq%>%
 ### 
 ## Bring in morph data : 
 morph_df <- read.csv("/Users/kellyloria/Documents/UNR/MSMmetab/stream_morphology_core.csv")%>%
-  filter(quality =="trust") %>%
+  dplyr::filter(quality =="trust") %>%
     mutate(datetime = as.POSIXct(datetime, format="%Y-%m-%dT%H:%M:%SZ"),
            date=as.Date(datetime)) %>%
-  rename(site="Site")
+   dplyr::rename(site="Site")
 
 
 Morph_dat_day <- morph_df%>%
@@ -390,6 +401,7 @@ summary(BWU_dat)
 GBL_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBL_mod_dat.rds") %>%
   mutate(site="GBL")
 summary(GBL_dat)
+
 
 ## GBU 
 GBU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBU_mod_dat.rds") %>%
@@ -421,14 +433,14 @@ covariat_datq <- covariat_datq%>%
 ## Load metabolism model data
 ##================================
 BWL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWL_Full_2025-02-06_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+ dplyr::filter(GPP_daily_Rhat<1.05)%>%
+ dplyr::filter(GPP_97.5pct>0)%>%
+ dplyr::filter(ER_daily_Rhat<1.05) %>%
+ dplyr::filter(ER_2.5pct<0)%>%
+ dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+ dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -441,14 +453,14 @@ BWL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream
 summary(BWL_met_binned)
 
 GBL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBL_Full_30_2025-03-27_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+ dplyr::filter(GPP_daily_Rhat<1.05)%>%
+ dplyr::filter(GPP_97.5pct>0)%>%
+ dplyr::filter(ER_daily_Rhat<1.05) %>%
+ dplyr::filter(ER_2.5pct<0)%>%
+ dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+ dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -460,14 +472,14 @@ GBL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream
 
 
 BWU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWU_Full_2025-02-04_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+ dplyr::filter(GPP_daily_Rhat<1.05)%>%
+ dplyr::filter(GPP_97.5pct>0)%>%
+ dplyr::filter(ER_daily_Rhat<1.05) %>%
+ dplyr::filter(ER_2.5pct<0)%>%
+ dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+ dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -478,14 +490,14 @@ BWU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream
          catch="BW")
 
 GBU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBU_Full_2025-03-20_daily.csv") %>% #     GBU_Full_2025-02-03_daily.csv
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
+ dplyr::filter(GPP_daily_Rhat<1.05)%>%
+ dplyr::filter(GPP_97.5pct>0)%>%
+ dplyr::filter(ER_daily_Rhat<1.05) %>%
+ dplyr::filter(ER_2.5pct<0)%>%
+ dplyr::filter(K600_daily_Rhat<1.05) %>%
   mutate(
     GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
+ dplyr::filter(ER_mean < 0.01) %>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
   dplyr::select(date,GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
                 GPP_2.5pct, GPP_97.5pct, 
@@ -533,7 +545,7 @@ egret_BWL_N <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
   mutate(site="BWL") %>%
   dplyr::select(date, site, NO3_mgL_i, NO3_mgL_dl, NO3_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_BWL_NO31.csv")$ConcAve))
 infill_count
@@ -560,7 +572,7 @@ egret_BWL_A <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
     mutate(site="BWL") %>%
   dplyr::select(date, site, NH4_mgL_i, NH4_mgL_dl, NH4_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_BWL_NH4.csv")$ConcAve))
 infill_count
@@ -589,7 +601,7 @@ egret_BWU_N <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
   mutate(site="BWU") %>%
   dplyr::select(date, site, NO3_mgL_i, NO3_mgL_dl, NO3_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+ dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_BWU_NO3.csv")$ConcAve))
 infill_count
@@ -616,7 +628,7 @@ egret_BWU_A <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
     mutate(site="BWU") %>%
   dplyr::select(date, site, NH4_mgL_i, NH4_mgL_dl, NH4_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+ dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_BWU_NH4.csv")$ConcAve))
 infill_count
@@ -645,7 +657,7 @@ egret_GBL_N <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
   mutate(site="GBL") %>%
   dplyr::select(date, site, NO3_mgL_i, NO3_mgL_dl, NO3_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+ dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_GBL_NO3.csv")$ConcAve))
 infill_count
@@ -672,7 +684,7 @@ egret_GBL_A <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
     mutate(site="GBL") %>%
   dplyr::select(date, site, NH4_mgL_i, NH4_mgL_dl, NH4_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+ dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_GBL_NH4.csv")$ConcAve))
 infill_count
@@ -701,7 +713,7 @@ egret_GBU_N <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
   mutate(site="GBU") %>%
   dplyr::select(date, site, NO3_mgL_i, NO3_mgL_dl, NO3_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+ dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_GBU_NO3.csv")$ConcAve))
 infill_count
@@ -728,7 +740,7 @@ egret_GBU_A <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
     mutate(site="GBU") %>%
   dplyr::select(date, site, NH4_mgL_i, NH4_mgL_dl, NH4_mgL_m) %>%
   dplyr::group_by(date, site) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+ dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 infill_count <- sum(is.na(read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EGRET_GBU_NH4.csv")$ConcAve))
 infill_count
@@ -828,7 +840,7 @@ covariat_ndemand <- covariat_datq %>%
 
 morph_counts <- covariat_datq %>%
   group_by(site) %>%
-  summarise(
+  dplyr::summarise(
     w_m_count = sum(!is.na(w_m)), 
     v_m_count = sum(!is.na(v_m))
   )
@@ -841,27 +853,29 @@ morph_counts
 ##### better way to infill width and velocites to get at reach length:
 # na.approx, and using Q as "Variables to be used for interpolation as in"
 
+library(dplyr)
 
 covariat_datqI <- covariat_datq %>%
-  group_by(site) %>%
-  arrange(date) %>%
-  mutate(
-    # Fit a linear model for w_m ~ Q_m using non-missing values
-    w_m_apr = ifelse(is.na(w_m), predict(lm(w_m ~ depth_m, data = cur_data(), na.action = na.omit), newdata = cur_data()), w_m),
-    v_m_apr = ifelse(is.na(v_m), predict(lm(v_m ~ Q_m, data = cur_data(), na.action = na.omit), newdata = cur_data()), v_m)
+  dplyr::group_by(site) %>%
+  dplyr::arrange(date, .by_group = TRUE) %>%
+  dplyr::mutate(
+    w_m_apr = if_else(
+      is.na(w_m),
+      predict(lm(w_m ~ depth_m, data = dplyr::cur_data(), na.action = na.omit),
+              newdata = dplyr::cur_data()),
+      w_m
+    ),
+    v_m_apr = if_else(
+      is.na(v_m),
+      predict(lm(v_m ~ Q_m, data = dplyr::cur_data(), na.action = na.omit),
+              newdata = dplyr::cur_data()),
+      v_m
+    )
   ) %>%
-  ungroup()
+  dplyr::ungroup()
 
-covariat_datqI <- covariat_datqI %>%
-  group_by(site) %>%
-  arrange(date) %>%  # Ensure chronological order
-   mutate( ## 17 NAs
-    w_m_apr = ifelse(is.na(w_m_apr),
-                  rollapplyr(w_m_apr, width = 15, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE),
-                  w_m_apr),
-    v_m_apr = ifelse(is.na(v_m_apr),
-                  rollapplyr(v_m_apr, width = 15, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE),
-                  v_m_apr))
+
+
 ```
 
 ```{r, warning=F, size = 'small', echo=F,include=F, fig.width=9, fig.height=10}
@@ -964,9 +978,9 @@ covariat_datq<-covariat_datq%>%
 
 
 overall_pf<- covariat_datq %>%
-    filter(yday >= 92, yday <= 153) %>%
+   dplyr::filter(yday >= 92, yday <= 153) %>%
   group_by(site, water_year) %>%
-  summarise(
+  dplyr::summarise(
     max_pf = max(Q_m, na.rm = TRUE),
     min_pf = min(Q_m, na.rm = TRUE),
     max_pf_yday = yday[which.max(Q_m)],
@@ -977,9 +991,9 @@ overall_pf<- covariat_datq %>%
 
 
 overall_bf<- covariat_datq %>%
-    filter(yday >= 170, yday <= 274) %>%
+   dplyr::filter(yday >= 170, yday <= 274) %>%
   group_by(site) %>%
-  summarise(
+ dplyr::summarise(
     max_q = max(Q_m, na.rm = TRUE),
     min_q = min(Q_m, na.rm = TRUE),
     max_q_yday = yday[which.max(Q_m)],
@@ -994,7 +1008,7 @@ overall_bf_df <- covariat_datq %>%
 
 
 steepest_slopes <- overall_bf_df %>%
-    filter(yday >= 153, yday <= 274) %>%
+   dplyr::filter(yday >= 153, yday <= 274) %>%
   #  arrange(site, water_year, yday) %>%
   mutate(
     mean_q = case_when(
@@ -1009,7 +1023,7 @@ steepest_slopes <- overall_bf_df %>%
       site == "GBL" & water_year == 2021 ~ Q_m + 0.001,  # Adjust ave_q for GBL in 2021
       TRUE ~ Q_m)) %>%
   group_by(site, water_year) %>%
-  summarise(
+ dplyr::summarise(
     ave_q = mean(mean_q, na.rm = TRUE),
     max_q = max(Q_m, na.rm = TRUE),
     min_q = min(Q_m, na.rm = TRUE),
@@ -1029,8 +1043,8 @@ steepest_slopes <- overall_bf_df %>%
 # Merge covariat_datq with steepest_slopes to get mean_q_yday
 Baseflowplots <- covariat_datq %>%
   dplyr::select(date, site, catch, water_year, Q_m, yday) %>%
-  left_join(steepest_slopes %>% select(site, water_year, mean_q_yday, ave_q), by = c("site", "water_year","yday"= "mean_q_yday")) %>%
-    left_join(overall_pf %>% select(site, water_year, max_pf, max_pf_yday), by = c("site", "water_year", "yday"= "max_pf_yday"))  %>%filter(site=="BWL" | site=="GBL")
+  left_join(steepest_slopes %>% dplyr::select(site, water_year, mean_q_yday, ave_q), by = c("site", "water_year","yday"= "mean_q_yday")) %>%
+    left_join(overall_pf %>%dplyr::select(site, water_year, max_pf, max_pf_yday), by = c("site", "water_year", "yday"= "max_pf_yday")) %>%dplyr::filter(site=="BWL" | site=="GBL")
 
 
 Baseflowplot1 <- Baseflowplots%>%
@@ -1041,7 +1055,7 @@ Baseflowplot1 <- Baseflowplots%>%
 
 
 Baseflowplot <- ggplot(Baseflowplot1 %>% 
-                         filter(water_year < 2025), 
+                        dplyr::filter(water_year < 2025), 
                        aes(x = yday, y = Q_m, color = as.factor(water_year))) +
   geom_line() +  
   scale_color_viridis_d(name = "Year") +  
@@ -1052,7 +1066,7 @@ Baseflowplot <- ggplot(Baseflowplot1 %>%
   xlab("Day of year") +
 
   # Vertical lines at ave_q day
-  geom_vline(data = Baseflowplot1 %>% filter(water_year < 2025),
+  geom_vline(data = Baseflowplot1 %>%dplyr::filter(water_year < 2025),
              aes(xintercept = yday[ave_q == ave_q], color = as.factor(water_year)),
              linetype = "dashed", size = 0.5, alpha = 0.9) +
 
@@ -1061,7 +1075,7 @@ Baseflowplot <- ggplot(Baseflowplot1 %>%
              shape = 19, size = 1.5, alpha = 0.9)
 
 BF_sum <- Baseflowplot1%>%
-  filter(!is.na(Baseflowplot1$ave_q))
+ dplyr::filter(!is.na(Baseflowplot1$ave_q))
 
 BF_sum
 
@@ -1071,7 +1085,7 @@ BF_sum
 ```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=4.25}
 
 Baseflowplot <- ggplot(Baseflowplot1 %>% 
-                         filter(water_year < 2025), 
+                        dplyr::filter(water_year < 2025), 
                        aes(x = yday, y = Q_m, color = as.factor(water_year))) +
   geom_line() +  
   scale_color_viridis_d(name = "Year") +  
@@ -1083,7 +1097,7 @@ Baseflowplot <- ggplot(Baseflowplot1 %>%
   xlab("Day of year") +
 
   # Vertical lines at ave_q day
-  geom_vline(data = Baseflowplot1 %>% filter(water_year < 2025),
+  geom_vline(data = Baseflowplot1 %>%dplyr::filter(water_year < 2025),
              aes(xintercept = yday[ave_q == ave_q], color = as.factor(water_year)),
              linetype = "dashed", size = 0.5, alpha = 0.9) +
 
@@ -1092,27 +1106,27 @@ Baseflowplot <- ggplot(Baseflowplot1 %>%
              shape = 19, size = 1.5, alpha = 0.9) +
 
   geom_text(data = Baseflowplot1 %>% 
-              filter(site == "BWL" & water_year < 2025), 
+             dplyr::filter(site == "BWL" & water_year < 2025), 
             aes(x = 232, y = 8.7, label = "51 days"),  # Adjusted to max Q_m and max yday for top-right corner
             color = "#440154", size = 4, hjust = 1, vjust = 1, fontface = "bold") +
   geom_text(data = Baseflowplot1 %>% 
-              filter(site == "BWL" & water_year < 2025), 
+             dplyr::filter(site == "BWL" & water_year < 2025), 
             aes(x = 232, y = 8, label = "30 days"),  # Adjust the position and text as needed
             color = "#3B528B", size = 4, hjust = 1, vjust = 1, fontface = "bold") +
   geom_text(data = Baseflowplot1 %>% 
-              filter(site == "BWL" & water_year < 2025), 
+             dplyr::filter(site == "BWL" & water_year < 2025), 
             aes(x = 232, y = 7.3, label = "27 days"),  # Adjust the position and text as needed
             color = "#fad311", size = 4, hjust = 1, vjust = 1, fontface = "bold") +
   geom_text(data = Baseflowplot1 %>% 
-              filter(site == "GBL" & water_year < 2025), 
+             dplyr::filter(site == "GBL" & water_year < 2025), 
             aes(x = 232, y = 0.85, label = "42 days"),  # Adjusted to max Q_m and max yday for top-right corner
             color = "#440154", size = 4, hjust = 1, vjust = 1, fontface = "bold") +
   geom_text(data = Baseflowplot1 %>% 
-              filter(site == "GBL" & water_year < 2025), 
+             dplyr::filter(site == "GBL" & water_year < 2025), 
             aes(x = 232, y = 0.78, label = "38 days"),  # Adjust the position and text as needed
             color = "#3B528B", size = 4, hjust = 1, vjust = 1, fontface = "bold") +
   geom_text(data = Baseflowplot1 %>% 
-              filter(site == "GBL" & water_year < 2025), 
+             dplyr::filter(site == "GBL" & water_year < 2025), 
             aes(x = 232, y = 0.71, label = "29 days"),  # Adjust the position and text as needed
             color = "#fad311", size = 4, hjust = 1, vjust = 1, fontface = "bold")
 
@@ -1182,7 +1196,7 @@ xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
           annotate("text", x = 7, y = -2, label = "BW Lower", size = 5, fontface = "bold", hjust = 0.5) 
 
 BWU_DF_fixed <- covariat_datq%>%dplyr::filter(site=="BWU") %>%
-  filter(water_year < 2024) %>%
+ dplyr::filter(water_year < 2024) %>%
   mutate(water_year = factor(water_year, levels = c(2021, 2022, 2023, 2024))) %>%
   bind_rows(tibble(GPP_mean = NA, ER_mean = NA, water_year = factor(2024, levels = c(2021, 2022, 2023, 2024))))  # Add dummy row
 
@@ -1204,8 +1218,8 @@ BWU_KD_plot
 
 
 GBU_DF_clean <- covariat_datq%>%dplyr::filter(site=="GBU") %>%
-filter(water_year<2025)%>%
-  filter(!is.na(GPP_mean) & !is.na(ER_mean))%>%
+dplyr::filter(water_year<2025)%>%
+ dplyr::filter(!is.na(GPP_mean) & !is.na(ER_mean))%>%
   dplyr::select(date, water_year, GPP_mean, ER_mean)
 
 # Compute 2D density
@@ -1237,7 +1251,7 @@ GBU_KD_plot
 
 
 GBL_DF_clean <- covariat_datq%>%dplyr::filter(site=="GBL") %>%
-  filter(!is.na(GPP_mean) & !is.na(ER_mean))%>%
+ dplyr::filter(!is.na(GPP_mean) & !is.na(ER_mean))%>%
   dplyr::select(date, water_year, GPP_mean, ER_mean)
 
 # Compute 2D density
@@ -1254,7 +1268,7 @@ density_df <- data.frame(
 # Plot with contour lines
 GBL_KD_plot <- ggplot() +
 #  geom_contour(data = density_df, aes(x = x, y = y, z = z), color = "black", bins = 10) +
-  geom_point(data = GBL_DF_clean%>%filter(water_year<2025), aes(x = GPP_mean, y = ER_mean, color = as.factor(water_year)), alpha = 0.5) +
+  geom_point(data = GBL_DF_clean%>%dplyr::filter(water_year<2025), aes(x = GPP_mean, y = ER_mean, color = as.factor(water_year)), alpha = 0.5) +
   scale_x_continuous(position = "top") +
       geom_contour(data = density_df, aes(x = x, y = y, z = z), color = "#f2e54b", bins = 25, size=0.25) +
   geom_abline(slope = -1, intercept = 0, color = "black") +  # 1:1 line
@@ -1322,17 +1336,17 @@ KD_coeff_grid
 ```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="BWL") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="BWL") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
 plot_data_GPP <- covariat_datq %>%
-      filter(site=="BWL") %>%
-  filter(!is.na(GPP_mean)) %>%
+     dplyr::filter(site=="BWL") %>%
+ dplyr::filter(!is.na(GPP_mean)) %>%
   dplyr:: select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
@@ -1342,9 +1356,9 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(covariat_datq, aes(x = date)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
 
   scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
   scale_y_continuous(name = "", breaks = NULL) +
@@ -1355,17 +1369,17 @@ templt <- ggplot(covariat_datq, aes(x = date)) +
 ```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="BWU") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="BWU") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
 plot_data_GPP <- covariat_datq %>%
-      filter(site=="BWU") %>%
-  filter(!is.na(GPP_mean)) %>%
+     dplyr::filter(site=="BWU") %>%
+ dplyr::filter(!is.na(GPP_mean)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
@@ -1375,9 +1389,9 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt_BWU <- ggplot(covariat_datq, aes(x = date)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
 
   scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
   scale_y_continuous(name = "", breaks = NULL) +
@@ -1388,17 +1402,17 @@ templt_BWU <- ggplot(covariat_datq, aes(x = date)) +
 ```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="GBL") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="GBL") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
 plot_data_GPP <- covariat_datq %>%
-      filter(site=="GBL") %>%
-  filter(!is.na(GPP_mean)) %>%
+     dplyr::filter(site=="GBL") %>%
+ dplyr::filter(!is.na(GPP_mean)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
@@ -1408,9 +1422,9 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt_GBL <- ggplot(covariat_datq, aes(x = date)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
 
   scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
   scale_y_continuous(name = "", breaks = NULL) +
@@ -1421,17 +1435,17 @@ templt_GBL <- ggplot(covariat_datq, aes(x = date)) +
 ```{r, warning=F, size = 'small', echo=F, include=FALSE, include=F}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="GBU") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="GBU") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
   dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
 plot_data_GPP <- covariat_datq %>%
-  filter(site=="GBU") %>%
-  filter(!is.na(GPP_mean)) %>%
+ dplyr::filter(site=="GBU") %>%
+ dplyr::filter(!is.na(GPP_mean)) %>%
   dplyr:: select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), has_GPP = !is.na(GPP_mean))
 
@@ -1441,9 +1455,9 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt_GBU <- ggplot(covariat_datq, aes(x = date)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
-    geom_point(data = filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(plot_data_DO, has_do), aes(y = 0.095), alpha=0.3, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.090), alpha= 0.3, color = "#579467", size = 1) + # GPP presence tick marks
+    geom_point(data =dplyr::filter(plot_data_GPP, has_GPP), aes(y = 0.085), alpha= 0.02, color = "#fffcfd", size = 1) + # GPP presence tick marks
 
   scale_x_date(date_breaks = "3 months", date_labels = "%b-%y",  limits = date_range) +  # Labels every 2 months
   scale_y_continuous(name = "", breaks = NULL) +
@@ -1474,17 +1488,19 @@ Where days that the model can't identify GPP (in green) or ER (orange) but there
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="BWL") %>%
-  filter(!is.na(do.obs_m)) %>%
-   dplyr::select(date, do.obs_m, GPP_mean) %>%
-  mutate(has_do = !is.na(do.obs_m), 
-         has_GPP = !is.na(GPP_mean),
-         plot_GPP = ifelse(is.na(GPP_mean), 0, GPP_mean),
-         yday=yday(date),
-         year=year(date))
+  dplyr::filter(site=="BWL", !is.na(do.obs_m)) %>%
+  dplyr::select(date, do.obs_m, GPP_mean) %>%
+  dplyr::mutate(
+    has_do = !is.na(do.obs_m),
+    has_GPP = !is.na(GPP_mean),
+    plot_GPP = dplyr::if_else(is.na(GPP_mean), 0, GPP_mean),
+    yday = lubridate::yday(date),
+    year = lubridate::year(date)
+  )
+
 
 # Identify the unique yday values for each year
 yday_2021 <- unique(plot_data_DO$yday[plot_data_DO$year == 2021])
@@ -1496,12 +1512,15 @@ common_yday <- Reduce(intersect, list(yday_2021, yday_2022, yday_2023))
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(GPP_cumsum = cumsum(plot_GPP))
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(GPP_cumsum = cumsum(plot_GPP)) %>%
+  dplyr::ungroup()
+
+
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -1509,8 +1528,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt_1 <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "BW Lower - GPP") +facet_grid(year~.)
@@ -1524,7 +1543,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_bw <- date_datf_plt %>%
-  filter(site=="BWL" & year <2024) %>%
+ dplyr::filter(site=="BWL" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 BWL_plot <- ggplot(date_datf_plt_bw, aes(x = yday, y = GPP_cumsum, color = factor(year))) +
@@ -1544,23 +1563,42 @@ BWL_plot
 # Compute the maximum cumulative GPP for each year
 date_datf_plt_sum <- date_datf_plt_bw %>%
   group_by(year) %>%
-  summarise(
-    T_gpp = max(GPP_cumsum, na.rm = TRUE)) %>%
+  dplyr::summarise(T_gpp = max(GPP_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_gpp -T_gpp[year == 2023]) / T_gpp * 100)
+
+
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_gpp)) %>%
+  pull(dry_mean)
+
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_gpp)
+
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
+)
+
 
 ```
 
-
+## Wet to dry 102.0758
 
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="BWL") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="BWL") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, ER_mean) %>%
   mutate(has_do = !is.na(do.obs_m), 
          has_ER = !is.na(ER_mean),
@@ -1568,6 +1606,8 @@ plot_data_DO <- covariat_datq %>%
          plot_ER = ifelse(is.na(ER_abs), 0, ER_abs),
          yday=yday(date),
          year=year(date))
+
+
 
 # Identify the unique yday values for each year
 yday_2021 <- unique(plot_data_DO$yday[plot_data_DO$year == 2021])
@@ -1579,12 +1619,13 @@ common_yday <- Reduce(intersect, list(yday_2021, yday_2022, yday_2023))
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(ER_cumsum = cumsum(plot_ER))
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(ER_cumsum = cumsum(plot_ER)) %>%
+  dplyr::ungroup()
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -1592,8 +1633,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "BW Lower - ER") +facet_grid(year~.)
@@ -1607,7 +1648,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_bw <- date_datf_plt %>%
-  filter(site=="BWL" & year <2024) %>%
+ dplyr::filter(site=="BWL" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 BWL_plot1 <- ggplot(date_datf_plt_bw, aes(x = yday, y = ER_cumsum, color = factor(year))) +
@@ -1626,9 +1667,26 @@ BWL_plot1 <- ggplot(date_datf_plt_bw, aes(x = yday, y = ER_cumsum, color = facto
 # Compute the maximum cumulative GPP for each year
 date_datf_plt_sum <- date_datf_plt_bw %>%
   group_by(year) %>%
-  summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
+  dplyr::summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm -T_cm[year == 2023]) / T_cm * 100)
 
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_cm)) %>%
+  pull(dry_mean)
+
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_cm)
+
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
+)
 
 ```
 
@@ -1638,11 +1696,11 @@ date_datf_plt_sum <- date_datf_plt_bw %>%
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="BWU") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="BWU") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), 
          has_GPP = !is.na(GPP_mean),
@@ -1660,12 +1718,13 @@ common_yday <- Reduce(intersect, list(yday_2021, yday_2022, yday_2023))
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(GPP_cumsum = cumsum(plot_GPP))
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(GPP_cumsum = cumsum(plot_GPP)) %>%
+  dplyr::ungroup()
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -1673,8 +1732,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "BW Upper - GPP") +facet_grid(year~.)
@@ -1689,7 +1748,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_bw <- date_datf_plt %>%
-  filter(site=="BWU" & year <2024) %>%
+ dplyr::filter(site=="BWU" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 BWU_plot <- ggplot(date_datf_plt_bw, aes(x = yday, y = GPP_cumsum, color = factor(year))) +
@@ -1711,9 +1770,26 @@ BWU_plot <- ggplot(date_datf_plt_bw, aes(x = yday, y = GPP_cumsum, color = facto
 # Compute the maximum cumulative GPP for each year
 date_datf_plt_sum <- date_datf_plt_bw %>%
   group_by(year) %>%
-  summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
+  dplyr::summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm -T_cm[year == 2023]) / T_cm * 100)
 
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_cm)) %>%
+  pull(dry_mean)
+
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_cm)
+
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
+)
 
 
 ```
@@ -1724,11 +1800,11 @@ date_datf_plt_sum <- date_datf_plt_bw %>%
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="BWU") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="BWU") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, ER_mean) %>%
   mutate(has_do = !is.na(do.obs_m), 
          has_ER = !is.na(ER_mean),
@@ -1747,12 +1823,13 @@ common_yday <- Reduce(intersect, list(yday_2021, yday_2022, yday_2023))
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(ER_cumsum = cumsum(plot_ER))
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(ER_cumsum = cumsum(plot_ER)) %>%
+  dplyr::ungroup()
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -1760,8 +1837,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "BW Upper - ER") +facet_grid(year~.)
@@ -1775,7 +1852,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_bw <- date_datf_plt %>%
-  filter(site=="BWU" & year <2024) %>%
+ dplyr::filter(site=="BWU" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 BWU_plot1 <- ggplot(date_datf_plt_bw, aes(x = yday, y = ER_cumsum, color = factor(year))) +
@@ -1795,8 +1872,28 @@ BWU_plot1 <- ggplot(date_datf_plt_bw, aes(x = yday, y = ER_cumsum, color = facto
 # Compute the maximum cumulative GPP for each year
 date_datf_plt_sum <- date_datf_plt_bw %>%
   group_by(year) %>%
-  summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
+ dplyr::summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm -T_cm[year == 2023]) / T_cm * 100)
+
+
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_cm)) %>%
+  pull(dry_mean)
+
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_cm)
+
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
+)
+
 
 ```
 
@@ -1804,11 +1901,11 @@ date_datf_plt_sum <- date_datf_plt_bw %>%
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="GBL") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="GBL") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), 
          has_GPP = !is.na(GPP_mean),
@@ -1828,14 +1925,15 @@ common_yday <- Reduce(intersect, list(yday_2021,
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 
                                              2022, 
                                              2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(GPP_cumsum = cumsum(plot_GPP))
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(GPP_cumsum = cumsum(plot_GPP)) %>%
+  dplyr::ungroup()
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -1843,8 +1941,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "GB Lower - GPP") +facet_grid(year~.)
@@ -1858,7 +1956,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_gb <- date_datf_plt %>%
-  filter(site=="GBL" & year <2024) %>%
+ dplyr::filter(site=="GBL" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 GBL_plot <- ggplot(date_datf_plt_gb, aes(x = yday, y = GPP_cumsum, color = factor(year))) +
@@ -1876,15 +1974,30 @@ GBL_plot <- ggplot(date_datf_plt_gb, aes(x = yday, y = GPP_cumsum, color = facto
 # Compute the maximum cumulative GPP for each year
 date_datf_plt_sum <- date_datf_plt_gb %>%
   group_by(year) %>%
-  summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
+ dplyr::summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm -T_cm[year == 2023]) / T_cm * 100)
 
 
 date_datf_plt_sum <- date_datf_plt_gb %>%
   group_by(year) %>%
-  summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
+ dplyr::summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm[year == 2023]-T_cm) / T_cm[year == 2023] * 100)
 
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_cm)) %>%
+  pull(dry_mean)
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_cm)
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
+)
 
 ```
 
@@ -1892,11 +2005,11 @@ date_datf_plt_sum <- date_datf_plt_gb %>%
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="GBL") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="GBL") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, ER_mean) %>%
   mutate(has_do = !is.na(do.obs_m), 
          has_ER = !is.na(ER_mean),
@@ -1915,12 +2028,15 @@ common_yday <- Reduce(intersect, list(yday_2021, yday_2022, yday_2023))
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(ER_cumsum = cumsum(plot_ER))
+
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(ER_cumsum = cumsum(plot_ER)) %>%
+  dplyr::ungroup()
+
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -1928,8 +2044,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "GB Lower - ER") +facet_grid(year~.)
@@ -1943,7 +2059,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_gb <- date_datf_plt %>%
-  filter(site=="GBL" & year <2024) %>%
+ dplyr::filter(site=="GBL" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 GBL_plot1 <- ggplot(date_datf_plt_gb, aes(x = yday, y = ER_cumsum, color = factor(year))) +
@@ -1958,12 +2074,27 @@ GBL_plot1 <- ggplot(date_datf_plt_gb, aes(x = yday, y = ER_cumsum, color = facto
 GBL_plot1
 
 
-
 date_datf_plt_sum <- date_datf_plt_gb %>%
   group_by(year) %>%
-  summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
+ dplyr::summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm[year == 2023]-T_cm) / T_cm[year == 2023] * 100)
 
+
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_cm)) %>%
+  pull(dry_mean)
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_cm)
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
+)
 ```
 
 
@@ -1972,11 +2103,11 @@ date_datf_plt_sum <- date_datf_plt_gb %>%
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="GBU") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="GBU") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, GPP_mean) %>%
   mutate(has_do = !is.na(do.obs_m), 
          has_GPP = !is.na(GPP_mean),
@@ -1996,14 +2127,15 @@ common_yday <- Reduce(intersect, list(yday_2021,
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 
                                              2022, 
                                              2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(GPP_cumsum = cumsum(plot_GPP))
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(GPP_cumsum = cumsum(plot_GPP)) %>%
+  dplyr::ungroup()
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -2011,8 +2143,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_GPP), aes(y = 0.090), alpha= 0.8, color = "#579467", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "GB Upper - GPP") +facet_grid(year~.)
@@ -2026,7 +2158,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_gb <- date_datf_plt %>%
-  filter(site=="GBU" & year <2024) %>%
+ dplyr::filter(site=="GBU" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 GBU_plot <- ggplot(date_datf_plt_gb, aes(x = yday, y = GPP_cumsum, color = factor(year))) +
@@ -2042,9 +2174,24 @@ GBU_plot <- ggplot(date_datf_plt_gb, aes(x = yday, y = GPP_cumsum, color = facto
 
 date_datf_plt_sum <- date_datf_plt_gb %>%
   group_by(year) %>%
-  summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
+ dplyr::summarise(T_cm = max(GPP_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm -T_cm[year == 2023]) / T_cm * 100)
 
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_cm)) %>%
+  pull(dry_mean)
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_cm)
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
+)
 
 ```
 
@@ -2053,11 +2200,11 @@ date_datf_plt_sum <- date_datf_plt_gb %>%
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
 plot_data_date <- covariat_datq %>%
-  filter(!is.na(do.obs_m))
+ dplyr::filter(!is.na(do.obs_m))
 
 plot_data_DO <- covariat_datq %>%
-    filter(site=="GBU") %>%
-  filter(!is.na(do.obs_m)) %>%
+   dplyr::filter(site=="GBU") %>%
+ dplyr::filter(!is.na(do.obs_m)) %>%
    dplyr::select(date, do.obs_m, ER_mean) %>%
   mutate(has_do = !is.na(do.obs_m), 
          has_ER = !is.na(ER_mean),
@@ -2076,12 +2223,14 @@ common_yday <- Reduce(intersect, list(yday_2021, yday_2022, yday_2023))
 
 # Filter the dataframe for only those common yday values
 filtered_data <- plot_data_DO %>%
-  filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
+ dplyr::filter(yday %in% common_yday & year %in% c(2021, 2022, 2023))
 
-filtered_data_cs <- filtered_data%>%
-    arrange(year, yday) %>%
-    group_by(year) %>%
-    mutate(ER_cumsum = cumsum(plot_ER))
+
+filtered_data_cs <- filtered_data %>%
+  dplyr::group_by(year) %>%
+  dplyr::arrange(yday, .by_group = TRUE) %>%
+  dplyr::mutate(ER_cumsum = cumsum(plot_ER)) %>%
+  dplyr::ungroup()
 
 # Determine the date range
 date_range <- range(plot_data_date$date, na.rm = TRUE)
@@ -2089,8 +2238,8 @@ date_range <- range(plot_data_date$date, na.rm = TRUE)
 # Create the number line plot
 templt <- ggplot(filtered_data, aes(x = yday)) +
   #geom_segment(aes(x = date_range[1], xend = date_range[2], y = 0, yend = 0), linewidth = 0.2) + # Main line
-  geom_point(data = filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
-  geom_point(data = filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_do), aes(y = 0.095), alpha=0.8, color = "black", size = 1) + # DO presence tick marks
+  geom_point(data =dplyr::filter(filtered_data, has_ER), aes(y = 0.090), alpha= 0.8, color = "chocolate", size = 1) + # GPP presence tick marks
   scale_y_continuous(name = "", breaks = NULL) +
   theme_classic() + xlab(NULL) +
     labs(title = "GB Upper - ER") +facet_grid(year~.)
@@ -2105,7 +2254,7 @@ date_datf_plt <- date_datf %>%
          year=year(date))
 
 date_datf_plt_gb <- date_datf_plt %>%
-  filter(site=="GBU" & year <2024) %>%
+ dplyr::filter(site=="GBU" & year <2024) %>%
   left_join(filtered_data_cs, by=c("yday", "year", "date"))
 
 GBU_plot1 <- ggplot(date_datf_plt_gb, aes(x = yday, y = ER_cumsum, color = factor(year))) +
@@ -2121,8 +2270,25 @@ GBU_plot1 <- ggplot(date_datf_plt_gb, aes(x = yday, y = ER_cumsum, color = facto
 
 date_datf_plt_sum <- date_datf_plt_gb %>%
   group_by(year) %>%
-  summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
+ dplyr::summarise(T_cm = max(ER_cumsum, na.rm = TRUE)) %>%
   mutate(percent_change = (T_cm -T_cm[year == 2023]) / T_cm * 100)
+
+
+dry_mean <- date_datf_plt_sum %>%
+  dplyr::filter(year %in% c(2021, 2022)) %>%
+  dplyr::summarise(dry_mean = mean(T_cm)) %>%
+  pull(dry_mean)
+
+wet_2023 <- date_datf_plt_sum %>%
+  dplyr::filter(year == 2023) %>%
+  pull(T_cm)
+
+tibble(
+  dry_mean = dry_mean,
+  wet_2023 = wet_2023,
+  diff = wet_2023 - dry_mean,
+  pct_decrease = (dry_mean-wet_2023) / dry_mean * 100
+)
 
 ```
 
@@ -2207,9 +2373,9 @@ covariat_NS_ND <- ndyn %>%
     TRUE ~ NA_character_  
   )) %>%
     group_by(site, date, catch) %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
-N_ratio_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(x = (NO3_supply), y = (Ndemand), color = as.factor(water_year), shape=site)) +
+N_ratio_plots <- ggplot(covariat_NS_ND%>%dplyr::filter(water_year<2025), aes(x = (NO3_supply), y = (Ndemand), color = as.factor(water_year), shape=site)) +
   geom_point(size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
     geom_point( aes(x = (NH4_supply), y = Ndemand, color = as.factor(water_year)),
                 size = 3, alpha = 0.85, position = position_dodge(width = 0.3)) +
@@ -2228,7 +2394,7 @@ N_ratio_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(x = (NO3_s
   theme_classic() 
 
 
-NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(y = (NO3_supply_new), x = jday, color = as.factor(water_year), shape=site)) +
+NO3_supp_plots <- ggplot(covariat_NS_ND%>%dplyr::filter(water_year<2025), aes(y = (NO3_supply_new), x = jday, color = as.factor(water_year), shape=site)) +
   geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
   geom_point( aes(y = log(NH4_supply_new+1), x = jday, color = as.factor(water_year), shape=site), 
                 size = 2, alpha = 0.85, position = position_dodge(width = 0.3)) +
@@ -2253,7 +2419,7 @@ NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(y = (NO3_
 # Define threshold for high NO3 demand (above 3rd quartile)
 high_Ndemand_threshold <- 0.075
 
-N_demand_plot1 <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(y = (Ndemand), x = jday, color = as.factor(water_year), shape = site)) +
+N_demand_plot1 <- ggplot(covariat_NS_ND%>%dplyr::filter(water_year<2025), aes(y = (Ndemand), x = jday, color = as.factor(water_year), shape = site)) +
   geom_point(size = 2, alpha = 0.85, position = position_dodge(width = 0.8)) +
   scale_color_viridis_d(option = "viridis", name = "Water year") +  # Use _c for continuous data
     scale_fill_viridis_d(option = "viridis", name = "Water year") +  # Use _c for continuous data
@@ -2333,7 +2499,7 @@ Ndyn_grid
 
 ```{r, warning=F, size = 'small', echo=T, include=T,fig.width=6, fig.height=4}
 n_df <- n_up%>%
-  filter(success=="yes") %>%
+ dplyr::filter(success=="yes") %>%
   mutate(
          Uadd_g_m2_min = c(Uadd_ug_L_min/1000000),
          Uadd_g_m2_D = c(Uadd_g_m2_min*1440)) 
@@ -2418,7 +2584,7 @@ uptake_dyn <- uptake_df %>%
     U_NO3_calc = c((Ndemand*NO3_supply_new)/(Ndemand+NO3_supply_new)),
     U_NH4_calc = c((Ndemand*NH4_supply_new)/(Ndemand+NH4_supply_new))) %>%
   group_by(site, date) %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
   mutate(catch = case_when(
     site== "BWL" ~ "BW",
     site== "BWU" ~ "BW",
@@ -2441,7 +2607,7 @@ hist2
 
 n_df_temp <- uptake_dyn %>%
   group_by(site) %>%
-  summarise(U_NO3_calc= c(mean(U_NO3_calc, na.rm=T)*1000),
+ dplyr::summarise(U_NO3_calc= c(mean(U_NO3_calc, na.rm=T)*1000),
             U_NH4_calc= c(mean(U_NH4_calc, na.rm=T)*1000), 
             Q_ls=c(mean(Q_m, na.rm=T)*1000))
 #   
@@ -2466,7 +2632,7 @@ quantile(uptake_dyn$S_D_NH4, probs = c(0.1, 0.9), na.rm = TRUE)
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F,fig.width=9, fig.height=6}
-hist1<- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = log(S_D_NO3+1))) +
+hist1<- ggplot(uptake_dyn%>%dplyr::filter(water_year<2024), aes(x = log(S_D_NO3+1))) +
  # geom_histogram(aes(fill = site,  color = site),  position = "dodge", alpha = 0.7, bins = 5) +  scale_color_manual(values = site_colors) + 
   geom_density(alpha = 0.7, aes(fill = site,  color = site)) +
   scale_color_manual(values = site_colors)  +
@@ -2474,7 +2640,7 @@ hist1<- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = log(S_D_NO3+1))) +
   xlab(expression(log(NO[3]~Supply/N~Demand)))  
 hist1
 
-hist2<- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = log(S_D_NH4+1))) +
+hist2<- ggplot(uptake_dyn%>%dplyr::filter(water_year<2024), aes(x = log(S_D_NH4+1))) +
  # geom_histogram(aes(fill = site,  color = site),  position = "dodge", alpha = 0.7, bins = 5) +  scale_color_manual(values = site_colors) + 
   geom_density(alpha = 0.7, aes(fill = site,  color = site)) +
   scale_color_manual(values = site_colors)  +
@@ -2615,7 +2781,7 @@ Ndyn_grid
 
 
 uptake_dyn_sum <- uptake_dyn %>%
-  filter(!is.na(Ndemand) & !is.na(NO3_supply_new) & !is.na(NH4_supply_new))
+ dplyr::filter(!is.na(Ndemand) & !is.na(NO3_supply_new) & !is.na(NH4_supply_new))
   
 
 ```
@@ -2630,38 +2796,38 @@ uptake is more limited by biological demand, relative to N supply.
 
 ```{r, warning=F, size = 'small', echo=F, include=F,fig.width=9, fig.height=6}
 
-lm_no3_d_gb <- lmer(log(U_NO3_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%filter(catch=="GB"))
+lm_no3_d_gb <- lmer(log(U_NO3_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="GB"))
 summary(lm_no3_d_gb)
 r.squaredGLMM(lm_no3_d_gb)
 
-lm_no3_d_bw <- lmer(log(U_NO3_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%filter(catch=="BW"))
+lm_no3_d_bw <- lmer(log(U_NO3_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="BW"))
 summary(lm_no3_d_bw)
 r.squaredGLMM(lm_no3_d_bw)
 
-lm_nh4_d_gb <- lmer(log(U_NH4_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%filter(catch=="GB"))
+lm_nh4_d_gb <- lmer(log(U_NH4_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="GB"))
 summary(lm_nh4_d_gb)
 r.squaredGLMM(lm_nh4_d_gb)
 
-lm_nh4_d_bw <- lmer(log(U_NH4_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%filter(catch=="BW"))
+lm_nh4_d_bw <- lmer(log(U_NH4_calc+1) ~ scale(Ndemand) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="BW"))
 summary(lm_nh4_d_bw)
 r.squaredGLMM(lm_nh4_d_bw)
 
-lm_no3_s_gb <- lmer(log(U_NO3_calc+1) ~ scale(NO3_supply_new) + (1|water_year), data= uptake_dyn%>%filter(catch=="GB"))
+lm_no3_s_gb <- lmer(log(U_NO3_calc+1) ~ scale(NO3_supply_new) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="GB"))
 summary(lm_no3_s_gb)
 r.squaredGLMM(lm_no3_s_gb)
 
 
-lm_no3_s_bw <- lmer(log(U_NO3_calc+1) ~ scale(NO3_supply_new) + (1|water_year), data= uptake_dyn%>%filter(catch=="BW"))
+lm_no3_s_bw <- lmer(log(U_NO3_calc+1) ~ scale(NO3_supply_new) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="BW"))
 summary(lm_no3_s_bw)
 r.squaredGLMM(lm_no3_s_bw)
 
 
-lm_nh4_s_gb <- lmer(log(U_NH4_calc+1) ~ scale(NH4_supply_new) + (1|water_year), data= uptake_dyn%>%filter(catch=="GB"))
+lm_nh4_s_gb <- lmer(log(U_NH4_calc+1) ~ scale(NH4_supply_new) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="GB"))
 summary(lm_nh4_s_gb)
 r.squaredGLMM(lm_nh4_s_gb)
 
 
-lm_nh4_s_bw <- lmer(log(U_NH4_calc+1) ~ scale(NH4_supply_new) + (1|water_year), data= uptake_dyn%>%filter(catch=="BW"))
+lm_nh4_s_bw <- lmer(log(U_NH4_calc+1) ~ scale(NH4_supply_new) + (1|water_year), data= uptake_dyn%>%dplyr::filter(catch=="BW"))
 summary(lm_nh4_s_bw)
 r.squaredGLMM(lm_nh4_s_bw)
 
@@ -2678,7 +2844,7 @@ high_Ndemand_threshold <- quantile(na.omit(uptake_dyn$Ndemand), probs = 0.75)
 
 # Filter data for high NO3 demand instances
 high_Ndemand_sites <- uptake_dyn %>%
-  filter(Ndemand > high_Ndemand_threshold) %>%
+ dplyr::filter(Ndemand > high_Ndemand_threshold) %>%
   dplyr::select(site, date, water_year, jday, Ndemand, NO3_supply_new, U_NO3_calc) %>%
   arrange(desc(Ndemand))  # Sort by highest demand
 
@@ -2707,7 +2873,7 @@ high_NO3_sup_threshold <- quantile(na.omit(uptake_dyn$NO3_supply_new), probs = 0
 
 # Filter data for high NO3 demand instances
 high_NO3_sup_sites <- uptake_dyn %>%
-  filter(NO3_supply > high_NO3_sup_threshold) %>%
+ dplyr::filter(NO3_supply > high_NO3_sup_threshold) %>%
  dplyr:: select(site, date, water_year, jday, Ndemand, NO3_supply_new, U_NO3_calc) %>%
   arrange(desc(NO3_supply_new))  # Sort by highest demand
 
@@ -2736,7 +2902,7 @@ high_NH4_sup_threshold <- quantile(na.omit(uptake_dyn$NH4_supply_new), probs = 0
 
 # Filter data for high NO3 demand instances
 high_NH4_sup_sites <- uptake_dyn %>%
-  filter(NH4_supply > high_NH4_sup_threshold) %>%
+ dplyr::filter(NH4_supply > high_NH4_sup_threshold) %>%
  dplyr:: select(site, date, water_year, jday, Ndemand, NH4_supply_new, U_NH4_calc) %>%
   arrange(desc(NH4_supply_new))  # Sort by highest demand
 
@@ -2758,7 +2924,7 @@ print(high_NH4_supply_summary)
 
 ```{r, warning=F, size = 'small', echo=F, include=F,fig.width=9, fig.height=6}
 # Plot high NO3 demand over time
-TS_high_N_demand<- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y = Ndemand, color = jday, shape = site)) +
+TS_high_N_demand<- ggplot(uptake_dyn%>%dplyr::filter(water_year<2024), aes(x = date, y = Ndemand, color = jday, shape = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   scale_color_viridis_c(option = "viridis", name = "Day of year") +
   geom_point(size = 2, alpha = 0.7) +
@@ -2770,7 +2936,7 @@ TS_high_N_demand<- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y 
   theme_classic()
 
 
-TS_high_NO3_sup <- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y = NO3_supply_new, color = jday, shape = site)) +
+TS_high_NO3_sup <- ggplot(uptake_dyn%>%dplyr::filter(water_year<2024), aes(x = date, y = NO3_supply_new, color = jday, shape = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   scale_color_viridis_c(option = "viridis", name = "Day of year") +
   geom_point(size = 2, alpha = 0.7) +
@@ -2782,7 +2948,7 @@ TS_high_NO3_sup <- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y 
   theme_classic()
 
 
-TS_high_NH4_sup <- ggplot(uptake_dyn%>%filter(water_year<2024), aes(x = date, y = NH4_supply_new, color = jday, shape = site)) +
+TS_high_NH4_sup <- ggplot(uptake_dyn%>%dplyr::filter(water_year<2024), aes(x = date, y = NH4_supply_new, color = jday, shape = site)) +
   geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.3)) +
   scale_color_viridis_c(option = "viridis", name = "Day of year") +
   geom_point(size = 2, alpha = 0.7) +
@@ -2874,9 +3040,9 @@ Ndyn_grid
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=6}
 uptake_dyn_sum <- uptake_dyn2%>%
-  filter(water_year<2024)%>%
+ dplyr::filter(water_year<2024)%>%
   group_by(site, WY_lab) %>%
-  summarise(frac_NO3_uptake = mean(frac_NO3_uptake, na.rm=T),
+ dplyr::summarise(frac_NO3_uptake = mean(frac_NO3_uptake, na.rm=T),
            frac_NH4_uptake = mean(frac_NH4_uptake, na.rm=T),
            frac_N_uptake = mean(frac_N_uptake, na.rm=T),
            N_demand = mean(Ndemand, na.rm=T),
@@ -2889,7 +3055,7 @@ uptake_dyn_sum
 
 
 uptake_dyn_bw <- uptake_dyn2 %>%
-  filter(site=="BWU")
+ dplyr::filter(site=="BWU")
 
 summary(uptake_dyn_bw)
 
@@ -2944,7 +3110,7 @@ gb_reach_length <- 1100  # meters (GBU to GBL)
 
 # Calculate NO3 and NH4 retention with reach area
 reach_rent <- uptake_dyn %>%
-  filter(site %in% c("BWU", "BWL", "GBU", "GBL")) %>%
+ dplyr::filter(site %in% c("BWU", "BWL", "GBU", "GBL")) %>%
   group_by(catch, date) %>%
   summarize(
     NO3_supply_upper = NO3_supply_new[site %in% c("BWU", "GBU")],
@@ -3017,7 +3183,7 @@ hist2
 
 date_range <- range(as.Date("2021-03-20"), as.Date("2023-11-01"))
 
-Rent_NO3_plt <- ggplot(reach_rent%>%filter(water_year<2024), aes(x = date, y = NO3_retention, color = catch, shape = catch)) +
+Rent_NO3_plt <- ggplot(reach_rent%>%dplyr::filter(water_year<2024), aes(x = date, y = NO3_retention, color = catch, shape = catch)) +
   geom_point(size = 2, alpha = 0.7, position = position_dodge(width = 0.3)) +
       scale_color_manual(values = catch_colors) +
   geom_point(size = 2, alpha = 0.7) +
@@ -3037,7 +3203,7 @@ p_NO3 <- ggExtra::ggMarginal(Rent_NO3_plt + theme(legend.position = "none"),
                          alpha = 0.7)
 
 
-Rent_NH4_plt <- ggplot(reach_rent %>% filter(water_year < 2024), 
+Rent_NH4_plt <- ggplot(reach_rent %>%dplyr::filter(water_year < 2024), 
                        aes(x = date, y = NH4_retention, color = catch, shape = catch)) +
   geom_point(size = 2, alpha = 0.7, position = position_dodge(width = 0.3)) +
   geom_point(size = 2, alpha = 0.7) +
@@ -3115,9 +3281,9 @@ reach_rent_sum <- reach_rent%>%
   ))
 
 reach_rent_sum <- reach_rent_sum %>%
-  filter(water_year<2024)%>%
+ dplyr::filter(water_year<2024)%>%
   group_by(catch, WY_lab) %>%
-  summarise(NO3_retention = mean(NO3_retention, na.rm=T),
+ dplyr::summarise(NO3_retention = mean(NO3_retention, na.rm=T),
            NH4_retention = mean(NH4_retention, na.rm=T),
            NO3_processed = mean(NO3_processedi, na.rm=T),
            NH4_processed = mean(NH4_processedi, na.rm=T)
@@ -3125,8 +3291,8 @@ reach_rent_sum <- reach_rent_sum %>%
 reach_rent_sum
 
 date_range <- reach_rent %>%
-  filter(water_year<2024) %>%
-   filter(!is.na(NH4_retention) | !is.na(NO3_retention)) %>%
+ dplyr::filter(water_year<2024) %>%
+  dplyr::filter(!is.na(NH4_retention) | !is.na(NO3_retention)) %>%
   group_by(catch) %>%
   summarize(
     start_date = min(date, na.rm = TRUE),
@@ -3185,17 +3351,17 @@ covariat_nsupply <- covariat_datqI %>%
 
 
 BWL_DF <- nitrogen_data%>%
-  filter(site=="BWL") %>%
+ dplyr::filter(site=="BWL") %>%
   dplyr::select(site, date, NO3_mgL_i, NH4_mgL_i)
 
 summary_mean <- BWL_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 summary_mean
 summary_min <- BWL_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
 summary_min
 summary_max <- BWL_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
 summary_max
 
 
@@ -3203,17 +3369,17 @@ summary_max
 
 
 BWU_DF <- nitrogen_data%>%
-  filter(site=="BWU") %>%
+ dplyr::filter(site=="BWU") %>%
   dplyr::select(site, date, NO3_mgL_i, NH4_mgL_i)
 
 summary_mean <- BWU_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 summary_mean
 summary_min <- BWU_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
 summary_min
 summary_max <- BWU_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
 summary_max
 
 
@@ -3221,33 +3387,33 @@ summary_max
 
 
 GBL_DF <- nitrogen_data%>%
-  filter(site=="GBL") %>%
+ dplyr::filter(site=="GBL") %>%
   dplyr::select(site, date, NO3_mgL_i, NH4_mgL_i)
 
 summary_mean <- GBL_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 summary_mean
 summary_min <- GBL_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
 summary_min
 summary_max <- GBL_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
 summary_max
 
 
 
 GBU_DF <- nitrogen_data%>%
-  filter(site=="GBU") %>%
+ dplyr::filter(site=="GBU") %>%
   dplyr::select(site, date, NO3_mgL_i, NH4_mgL_i)
 
 summary_mean <- GBU_DF %>%
-    summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 summary_mean
 summary_min <- GBU_DF %>%
-    summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), min, na.rm = TRUE), .groups = "drop")
 summary_min
 summary_max <- GBU_DF %>%
-    summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
+   dplyr::summarise(across(everything(), max, na.rm = TRUE), .groups = "drop")
 summary_max
 
 ```
@@ -3260,12 +3426,12 @@ uptake_comp <- read.csv("/Users/kellyloria/Documents/Publications/CH1\ biogeoche
 
 uptake_comp_s <- uptake_comp%>%
   group_by(source) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") 
+ dplyr::summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") 
 
 
 uptake_comp_s <- uptake_comp%>%
   group_by(source) %>%
-  summarise(across(everything(), min, na.rm = TRUE), .groups = "drop") 
+ dplyr::summarise(across(everything(), min, na.rm = TRUE), .groups = "drop") 
   
 
 str(uptake_comp)
@@ -3424,7 +3590,7 @@ r.squaredGLMM(mod1)
 BM_cor_plt <- ggplot(covariat_datq, aes(x =AFDM_ugcm2, y = GPP_mean)) + 
   geom_point(aes(color = catch), size = 2, alpha = 0.55) + 
   theme_classic() + 
-      # geom_smooth(data = covariat_datq%>%filter(catch=="BW") , aes(color = "grey50"), method = "lm", se = FALSE, alpha = 0.5) + 
+      # geom_smooth(data = covariat_datq%>%dplyr::filter(catch=="BW") , aes(color = "grey50"), method = "lm", se = FALSE, alpha = 0.5) + 
             scale_x_continuous(trans = "log", breaks = scales::log_breaks(base = 10),
                                labels = scales::label_number()) + 
       scale_y_continuous(trans = "log", 
@@ -3561,7 +3727,7 @@ Looks like N:P \<16 across most observations
 
 ```{r, warning=F, size = 'small', echo=F, include=T, fig.width=9, fig.height=4}
 
-N_P_ratio_plots_sw <- ggplot(Stoich_df %>%filter(water_year<2024), aes(x = jday, y = N_P_ratio_sw, color = site)) +
+N_P_ratio_plots_sw <- ggplot(Stoich_df %>%dplyr::filter(water_year<2024), aes(x = jday, y = N_P_ratio_sw, color = site)) +
   geom_point(size = 2, alpha = 0.75, position = position_dodge(width = 0.3)) +
   scale_color_manual(values = site_colors) +
   geom_hline(yintercept = 16) +
@@ -3574,7 +3740,7 @@ N_P_ratio_plots_sw
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=5, fig.height=4}
-N_P_ratio_plots <- ggplot(Stoich_df %>%filter(water_year<2024), aes(y = GPP_mean, x = N_P_ratio_sw, color = site)) +
+N_P_ratio_plots <- ggplot(Stoich_df %>%dplyr::filter(water_year<2024), aes(y = GPP_mean, x = N_P_ratio_sw, color = site)) +
   geom_point(size = 2, alpha = 0.75, position = position_dodge(width = 0.3)) +
   scale_color_manual(values = site_colors) +
    xlab(expression(N:P~(umol~L^-1))) +
@@ -3591,13 +3757,13 @@ N_P_ratio_plots
 ```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
 
 Stoich_table_sum <- Stoich_df%>%
-  filter(!is.na(N_P_ratio_sw))%>%
-  filter(N_P_ratio_sw>15.5) 
+ dplyr::filter(!is.na(N_P_ratio_sw))%>%
+ dplyr::filter(N_P_ratio_sw>15.5) 
 
 #32 total 107
 
 Stoich_plot <- Stoich_df %>%
-  filter(water_year<2024) %>%
+ dplyr::filter(water_year<2024) %>%
   group_by(site, water_year) %>%
   dplyr::summarise(
     Tot_N_uMm = round(mean(Tot_N_uM_sw, na.rm = TRUE), 3),
@@ -3615,7 +3781,7 @@ Stoich_plot <- Stoich_df %>%
 ```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
 
 covariat_stats <- covariat_NS_ND%>%
-  filter(water_year<2024) %>%
+ dplyr::filter(water_year<2024) %>%
       mutate(WY_lab = case_when(
     water_year %in% c(2021, 2022) ~ "dry",
     water_year %in% c(2023) ~ "wet",
@@ -3630,7 +3796,7 @@ library(dplyr)
 # Calculate percentage change from dry to wet for each site
 covariat_stats_summary <- covariat_stats %>%
   group_by(site, WY_lab) %>%
-  summarise(across(c(Ndemand, NO3_supply_new, NH4_supply_new), mean, na.rm = TRUE), .groups = "drop") %>%
+ dplyr::summarise(across(c(Ndemand, NO3_supply_new, NH4_supply_new), mean, na.rm = TRUE), .groups = "drop") %>%
   pivot_wider(names_from = WY_lab, values_from = c(Ndemand, NO3_supply_new, NH4_supply_new)) %>%
   mutate(
     Ndemand_pct_change = ((Ndemand_wet - Ndemand_dry) / Ndemand_dry) * 100,
@@ -3653,20 +3819,20 @@ covariat_dat_bp <- covariat_datq %>%
 
 # Find how many unique water years are in the data
 n_years <- covariat_dat_bp %>%
-  filter(site == "BWL") %>%
+ dplyr::filter(site == "BWL") %>%
   pull(water_year) %>%
   unique() %>%
   length()
 
 # Filter weeks with non-NA GPP_mean in all water years
-valid_weeks <- covariat_dat_bp_BW %>%
-  filter(site == "BWL", !is.na(GPP_mean)) %>%
+valid_weeks <- covariat_dat_bp %>%
+ dplyr::filter(site == "BWL", !is.na(GPP_mean)) %>%
   mutate(week = week(date)) %>%
   group_by(week, water_year) %>%
-  summarise(n_nonNA = n(), .groups = "drop") %>%
+ dplyr::summarise(n_nonNA = n(), .groups = "drop") %>%
   group_by(week) %>%
-  summarise(n_years_with_data = n_distinct(water_year)) %>%
-  filter(n_years_with_data == n_years) %>%
+ dplyr::summarise(n_years_with_data = n_distinct(water_year)) %>%
+ dplyr::filter(n_years_with_data == n_years) %>%
   pull(week)
 
 # Define the water years you want on the x-axis, including 2021
@@ -3674,28 +3840,90 @@ desired_years <- c("2021", "2022", "2023")
 
 plot_BW_OM <- ggplot(
   covariat_dat_bp %>% 
-    filter(site == "BWL", water_year %in% 2022:2023),  # only show 2022–2023 data
-  aes(x = factor(water_year, levels = desired_years), y = AFDM_mgg, fill = factor(water_year))) +
+   dplyr::filter(site == "BWL", water_year %in% 2022:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = AFDM_mgg)) +
   
   geom_boxplot(alpha = 0.8, outlier.shape = NA) +
   geom_jitter(aes(color = factor(catch)),
-              size = 1.5, alpha = 0.25,
+              size = 1.5, alpha = 0.8,
               width = 0.2, height = 0, shape = 15) +
   
   # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
-  # geom_blank(data = covariat_dat_bp %>% filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
 
   scale_color_manual(values = catch_colors) +
-  scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+ # scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
   ylab(expression(OM~(mg~g^-1))) + 
   labs(x = "BW Lower", fill = "Water Year", color = "Catchment", shape = "Catchment") +
   theme_minimal()
+
+
+
+plot_BWU_OM <- ggplot(
+  covariat_dat_bp %>% 
+   dplyr::filter(site == "BWU", water_year %in% 2022:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = AFDM_mgg)) +
+  
+  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.8,
+              width = 0.2, height = 0, shape = 15) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+ # scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(expression(OM~(mg~g^-1))) + 
+  labs(x = "BWU Lower", fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  theme_minimal()
+
+
 
 
 ```
 
 
 
+### Perform ANOVA for year differences in at each reach
+
+##### GPP: 
+```{r, warning=F, size = 'small', echo=T, include=T}
+# Define the water years you want on the x-axis, including 2021
+desired_years <- c("2021", "2022", "2023")
+
+anova_n03_sup_bw <- aov(NO3_supply_new ~ as.factor(water_year), data = uptake_dyn2%>%dplyr::filter(site == "BWL", water_year %in% 2021:2023))
+summary(anova_n03_sup_bw)
+
+posthoc_n03 <- TukeyHSD(anova_n03_sup_bw)
+posthoc_n03
+
+#  there are no statistical diffs
+
+
+anova_n03_sup_bw <- aov(NO3_supply_new ~ as.factor(water_year), data = uptake_dyn2%>%dplyr::filter(site == "BWU", water_year %in% 2021:2023))
+summary(anova_n03_sup_bw)
+
+posthoc_n03 <- TukeyHSD(anova_n03_sup_bw)
+posthoc_n03
+
+#  there are no statistically diffs
+
+
+
+
+anova_n03_sup_gb <- aov(NO3_supply_new ~ as.factor(water_year), data = uptake_dyn2%>%dplyr::filter(site == "GBL", water_year %in% 2021:2023))
+summary(anova_n03_sup_gb)
+
+posthoc_n03 <- TukeyHSD(anova_n03_sup_gb)
+posthoc_n03
+
+#  there are no statistically diffs
+```
+
+#### ER:
+
+### Annual N supply
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
 
@@ -3705,26 +3933,826 @@ covariat_dat_bp <- covariat_datq %>%
 # Define the water years you want on the x-axis, including 2021
 desired_years <- c("2021", "2022", "2023")
 
-plot_Nsupply <- ggplot(
+### anova 
+anova_n03_bw<- aov(NO3_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n03_bw)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n03_bw, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plot_Nsupply_BWL <- ggplot(
   uptake_dyn2 %>% 
-    filter(site == "BWL", water_year %in% 2021:2023),  # only show 2022–2023 data
-  aes(x = factor(water_year, levels = desired_years), y = NO3_supply, fill = factor(water_year))) +
+   dplyr::filter(site == "BWL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NO3_supply_new)) +
   
-  geom_boxplot(alpha = 0.8, outlier.shape = NA) +
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
   geom_jitter(aes(color = factor(catch)),
-              size = 1.5, alpha = 0.25,
+              size = 1.5, alpha = 0.95,
               width = 0.2, height = 0, shape = 15) +
   
   # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
-  # geom_blank(data = covariat_dat_bp %>% filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
 
   scale_color_manual(values = catch_colors) +
-  scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
-  ylab(expression(OM~(mg~g^-1))) + 
-  labs(x = "BW Lower", fill = "Water Year", color = "Catchment", shape = "Catchment") +
-  theme_minimal()
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(expression(NO[3]~"supply")) +
+    xlab(NULL) + 
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0, 2.0) +
+  theme_classic()
+
+plot_Nsupply_BWL <- plot_Nsupply_BWL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 1.95, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
 
 
+### anova 
+anova_n <- aov(NO3_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plot_Nsupply_BWU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "BWU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NO3_supply_new)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 0) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+ # ylab(expression(NO[3]~"supply")) + 
+ ylab(NULL) +  
+        xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +ylim(0, 2.0) +
+  theme_classic()
+
+
+plot_Nsupply_BWU <- plot_Nsupply_BWU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 1.95, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+### anova 
+anova_n <- aov(NO3_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+summary(anova_n)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plot_Nsupply_GBL <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NO3_supply_new)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 17) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+ # ylab(expression(NO[3]~"supply")) + 
+  ylab(NULL) + 
+        xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0, 2.0) +
+  theme_classic()
+
+plot_Nsupply_GBL <- plot_Nsupply_GBL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 1.95, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+
+### anova 
+anova_n <- aov(NO3_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+summary(anova_n)
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plot_Nsupply_GBU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NO3_supply_new)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 2) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  #ylab(expression(NO[3]~"supply")) + 
+  ylab(NULL) +
+        xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0, 2.0) +
+  theme_classic()
+
+plot_Nsupply_GBU <- plot_Nsupply_GBU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 1.95, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+```
+
+### Nh4 supply 
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
+
+### anova 
+anova_n <- aov(NH4_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+summary(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+
+plot_NH4supply_BWL <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "BWL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NH4_supply_new)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 15) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(expression(NH[4]~"supply")) + 
+          xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0, 0.65) +
+  theme_classic()
+
+
+plot_NH4supply_BWL <- plot_NH4supply_BWL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+### anova 
+anova_n <- aov(NH4_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+plot_NH4supply_BWU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "BWU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NH4_supply_new)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 0) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + 
+  #ylab(expression(NH[4]~"supply")) + 
+          xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  0.65) +
+  theme_classic()
+
+
+plot_NH4supply_BWU <- plot_NH4supply_BWU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+### anova 
+anova_n <- aov(NH4_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+summary(anova_n)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+plot_NH4supply_GBL <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NH4_supply_new)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 17) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+ ylab(NULL) + 
+  # ylab(expression(NH[4]~"supply")) + 
+          xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  0.65) +
+  theme_classic()
+
+
+plot_NH4supply_GBL <- plot_NH4supply_GBL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+### anova 
+anova_n <- aov(NH4_supply_new ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+summary(anova_n)
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plot_NH4supply_GBU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = NH4_supply_new)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 2) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + 
+  #ylab(expression(NH[4]~"supply")) + 
+          xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  0.65) +
+  theme_classic()
+
+
+plot_NH4supply_GBU <- plot_NH4supply_GBU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+```
+
+
+
+### N demand
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
+
+### anova 
+anova_n <- aov(Ndemand ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+summary(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plotNdemandBWL <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "BWL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = Ndemand)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 15) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(expression(N~"demand")) + 
+      xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0, 0.65) +
+  theme_classic()
+
+
+
+plotNdemandBWL <- plotNdemandBWL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+# Run ANOVA and TukeyHSD
+anova_n_sup <- aov(Ndemand ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n_sup)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n_sup, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+
+plotNdemandBWU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "BWU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = Ndemand)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 0) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + 
+    xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  0.65) +
+  theme_classic()
+
+
+plotNdemandBWU <- plotNdemandBWU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+# Run ANOVA and TukeyHSD
+anova_n <- aov(Ndemand ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n_sup_gb, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+
+summary(anova_n)
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plotNdemandGBL <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = Ndemand)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 17) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + 
+      xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  0.65) +
+  theme_classic()
+
+plotNdemandGBL <- plotNdemandGBL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+### anova 
+anova_n<- aov(Ndemand ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plotNdemandGBU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = Ndemand)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 2) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + 
+      xlab(NULL) +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  0.65) +
+  theme_classic()
+
+
+plotNdemandGBU <- plotNdemandGBU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.62, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+```
+
+
+
+### N uptake
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
+
+anova_n <- aov(c(frac_NH4_uptake) ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+summary(anova_n)
+
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+uptake_dyn3 <- uptake_dyn2%>%
+  mutate(frac_N_uptake= sum(frac_NO3_uptake, frac_NH4_uptake))
+
+plotfrac_N_uptakeBWL <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "BWL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = frac_NO3_uptake)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 15) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(expression(N~"uptake")) + 
+    xlab("BW Lower") +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0, 1) +
+  theme_classic()
+
+plotfrac_N_uptakeBWL <- plotfrac_N_uptakeBWL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.97, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+anova_n <- aov(frac_NO3_uptake ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "BWU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+summary(anova_n)
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plotfrac_N_uptakeBWU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "BWU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = frac_NO3_uptake)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 0) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + 
+  #ylab(expression(N~"uptake")) + 
+  xlab("BW Upper") +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  1) +
+  theme_classic()
+
+
+plotfrac_N_uptakeBWU <- plotfrac_N_uptakeBWU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.97, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+anova_n <- aov(frac_NO3_uptake ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBL", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+plotfrac_N_uptakeGBL <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBL", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = frac_NO3_uptake)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 17) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + xlab("GB Lower") +
+  #ylab(expression(N~"uptake")) + 
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  1) +
+  theme_classic()
+
+plotfrac_N_uptakeGBL <- plotfrac_N_uptakeGBL +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.97, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+anova_n <- aov(frac_NO3_uptake ~ as.factor(water_year), 
+                        data = uptake_dyn2 %>%dplyr::filter(site == "GBU", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+# Convert to compact letter display
+tukey_letters <- multcompLetters4(anova_n, tukey_result)
+letters_df <- data.frame(
+  water_year = names(tukey_letters[[1]]$Letters),
+  letters = tukey_letters[[1]]$Letters
+)
+
+letters_df$water_year <- factor(letters_df$water_year, levels = desired_years)
+
+
+plotfrac_N_uptakeGBU <- ggplot(
+  uptake_dyn2 %>% 
+   dplyr::filter(site == "GBU", water_year %in% 2021:2023),  # only show 2022–2023 data
+  aes(x = factor(water_year, levels = desired_years), y = frac_NO3_uptake)) +
+  
+  geom_boxplot(alpha = 0.5, outlier.shape = NA, aes(fill=catch, color=catch)) +
+  geom_jitter(aes(color = factor(catch)),
+              size = 1.5, alpha = 0.95,
+              width = 0.2, height = 0, shape = 2) +
+  
+  # Optional: Add a dummy transparent box for 2021 to keep the spacing (not strictly needed if axis levels are set)
+  # geom_blank(data = covariat_dat_bp %>%dplyr::filter(water_year == 2021), aes(x = factor(2021), y = 10)) +
+
+  scale_color_manual(values = catch_colors) +
+  scale_fill_manual(values = catch_colors) +
+  #scale_fill_manual(values = c("2021" = "#440154", "2022" = "#3B528B", "2023" = "#4bcc94")) +
+  ylab(NULL) + xlab("GB Upper") +
+  labs(fill = "Water Year", color = "Catchment", shape = "Catchment") +
+  ylim(0,  1) +
+  theme_classic()
+
+
+plotfrac_N_uptakeGBU <- plotfrac_N_uptakeGBU +
+  geom_text(
+    data = letters_df,
+    aes(x = water_year, y = 0.97, label = letters),  
+    inherit.aes = FALSE,
+    size = 3
+  )
+
+
+```
+
+
+```{r, warning=F, size = 'small', echo=F, fig.width=8, include=FALSE,fig.height=6}
+
+
+Ndyn_annual_grid <- ggarrange(
+  plot_Nsupply_BWL,
+  plot_Nsupply_BWU,
+  plot_Nsupply_GBL,
+  plot_Nsupply_GBU,
+  plot_NH4supply_BWL,
+  plot_NH4supply_BWU,
+  plot_NH4supply_GBL,
+  plot_NH4supply_GBU,
+  plotNdemandBWL,
+  plotNdemandBWU,
+  plotNdemandGBL,
+  plotNdemandGBU,
+  plotfrac_N_uptakeBWL,
+  plotfrac_N_uptakeBWU,
+  plotfrac_N_uptakeGBL,
+  plotfrac_N_uptakeGBU,
+  align = "v",
+    ncol = 4, nrow = 4,
+    common.legend = TRUE, 
+   legend = "right")
+
+
+ Ndyn_annual_grid 
+  
+  
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=FALSE}
+# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Figure6_annualNtrend.png", plot = Ndyn_annual_grid, width = 8, height = 6.5, units = "in")
 
 ```
 
@@ -3773,5 +4801,36 @@ plot_Nsupply <- ggplot(
         being a larger stream.
 
     
-    
+```{r, warning=F, size = 'small', echo=F, include=FALSE}
+
+
+date_datf_plt_sum <- covariat_datq %>%
+    mutate(year=year(date))%>%
+ dplyr::filter(yday>1 & yday<285)%>%
+ dplyr::filter(site=="BWL" & year ==2024) %>%
+  group_by(year) %>%
+ dplyr::summarise(T_q = max(Q_m, na.rm = TRUE),
+            T_wtr = max(wtr_m, na.rm = TRUE),
+            T_spc = max(SPC_m, na.rm = TRUE),
+            T_om = max(AFDM_mgg, na.rm = TRUE),
+            T_biomass = max(AFDM_ugcm2, na.rm = TRUE),
+            T_chla = max(Chla_ugL_Q, na.rm = TRUE))
+
+
+
+
+anova_n <- aov(NO3_processedi ~ as.factor(water_year), 
+                        data = reach_rent %>%dplyr::filter(catch == "BW", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+summary(anova_n)
+
+
+anova_n <- aov(NO3_processed ~ as.factor(water_year), 
+                        data = reach_rent %>%dplyr::filter(catch == "GB", water_year %in% 2021:2023))
+tukey_result <- TukeyHSD(anova_n)
+
+summary(anova_n)
+
+```
     

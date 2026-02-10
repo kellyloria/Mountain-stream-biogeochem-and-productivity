@@ -48,6 +48,7 @@ daoc_date<- Sys.Date()
 lapply(c("plyr","dplyr","ggplot2","cowplot",
          "lubridate","tidyverse", "reshape2", "ggpubr", "ggpattern",
          "lme4", "lmerTest", "MuMIn", "PerformanceAnalytics", "car"), require, character.only=T)
+detach("package:plyr", unload = TRUE)
 site_colors <- c(
   "BWL" = "#054fb9",
   "BWU" = "#97b5c2",
@@ -124,6 +125,9 @@ comparisons <- list(
 ```{r, warning=F, size = 'small', echo=FALSE, include=F}
 date_datf <- water_year(date_datf)
 
+detach("package:plyr", unload = TRUE)
+
+
 covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat_AFDM.rds") %>%
   dplyr::select("date", "Site","bulk.density","AFDM_mgg","AFDM_mgcm2", "Chla_ugL_Q", "Pheo_ugL_Q")
 summary(covariat_dat)
@@ -137,9 +141,10 @@ covariat_dat <- covariat_dat %>%
     left_join(flow_df, by=c("date", "site"))
 
 
-bg_nuts <- readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
+bg_nuts <- 
+  readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
   filter(location=="stream") %>%
-    mutate(NO3_mgL_dl = if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl))%>%
+  mutate(NO3_mgL_dl = if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl))%>%
     mutate(NH4_mgL_dl=if_else(NH4_mgL_dl < 0.001, 0.001, NH4_mgL_dl))%>%
     mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl)) %>%
   mutate(PO4_ugL_dl=if_else(DOC_mgL_dl < 0.25, 0.125, DOC_mgL_dl)) %>%
@@ -393,7 +398,8 @@ covariat_datq <- covariat_datq%>%
 light_mod_df_day1 <- water_year(light_mod_df_day)
 
 light_data_HA1 <- light_mod_df_day1%>%
-  #filter(water_year>2020 & water_year<2024) %>%
+  mutate(yday=yday(date)) %>%
+  filter(yday<253) %>% # 253
   mutate(catch = case_when(
     site== "BWL"~ "BW",
     site== "BWU"~ "BW",
@@ -401,10 +407,10 @@ light_data_HA1 <- light_mod_df_day1%>%
     site== "GBU"~ "GB",
     TRUE ~ NA_character_  )) %>%
   # mutate(cum_PAR_surface = cumsum(PAR_surface)) %>%
-  group_by(catch) %>%
-  summarise(mean_LAI = mean(LAI, na.rm=T),
-            mean_veg_shade = mean(veg_shade, na.rm = T),
-            mean_PAR_surface = mean(PAR_surface, na.rm = T),
+  dplyr::group_by(site) %>%
+  summarise(mean_LAI = round(mean(LAI, na.rm=T),2),
+            mean_veg_shade = round(mean(veg_shade, na.rm = T),2),
+            mean_PAR_surface = round(mean(PAR_surface, na.rm = T),2),
             min_PAR_surface = min(PAR_surface, na.rm = T),
             max_PAR_surface = max(PAR_surface, na.rm = T),
             )

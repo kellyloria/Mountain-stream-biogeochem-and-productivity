@@ -1,0 +1,1118 @@
+---
+title: 'Revised TASC uptake calculations: for NH4-N'
+author: "Kelly Loria"
+date: "`r Sys.Date()`"
+output:
+   html_document:
+    theme: yeti
+    highlight: arrow
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{=html}
+<style type="text/css">
+body, td {font-size: 13px;}
+code.r{font-size: 9px;}
+pre {font-size: 11px}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(warning = TRUE, message = TRUE, error = TRUE,
+                      options(tibble.width = Inf)) # Display all columns)
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize",
+  paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"),
+  x
+)
+
+})
+
+```
+
+```{r, echo = F, message = F, include=FALSE}
+### Packages
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(unitted)
+library(lubridate)
+library(pracma)
+library(purrr)
+library(tibble)
+
+```
+
+## Assessing fit, uncertainty, and potential hysteresis in TASCC calculations and uptake estimate
+
+For just NH4 (see other markdown for NH4)
+
+### Reviewer-2 aligned pulse/TASCC pre-processing + QC summary
+
+-   Groups by date (each date = one pulse)
+
+-   Computes background-corrected concentrations
+
+-   Computes injectation N:Cl mass ratio from NH~4~Cl and NaCl masses
+
+-   Computes TMR as cumulative mass (ug) via ∫ Q(t)\*C(t) dt
+
+-   Computes kw, Sw, Vf, U and retains rising/falling limb labels
+
+## *First reach*
+
+## 1. Start with NH~4~ uptake at GLB
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+GBL_NH4_datq <- readRDS("/Users/kellyloria/Documents/UNR/Ncycle/2024_workflow/24_GBL_NH3_BTC_input.rds")
+head(GBL_NH4_datq)
+```
+
+#### BTC pulse injection processing code
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+
+process_pulse_one_date <- function(df_date,
+                                   bg_n = 2,                 # number of baseline samples (integer)
+                                   tracer_min_mgL = 0.0015, # # 1/2 NH4 DL
+                                   use_total_NH4 = TRUE     # FALSE = use background-corrected NH4 for fits
+){
+  df_date <- df_date %>%
+    arrange(datetime) %>%
+    mutate(
+      # seconds since start of this pulse sampling
+      t_sec = as.numeric(difftime(datetime, first(datetime), units = "secs")),
+      # convert Q to L/s (if offset_Q is m3/s)
+      Q_Ls = offset_Q * 1000
+    )
+  
+  # ---- pulse-specific distance (injection -> station)
+  x_m <- unique(df_date$reach_length)
+  x_m <- x_m[is.finite(x_m)][1]
+  
+  # ---- pulse-specific background (first bg_n points; assumes pre-tracer)
+  bg_n <- min(bg_n, nrow(df_date))
+  NH4_bg_mgL <- mean(df_date$NH3_corrected[seq_len(bg_n)], na.rm = TRUE)
+  Cl_bg_mgL  <- mean(df_date$Cl_corrected[seq_len(bg_n)],  na.rm = TRUE)
+  
+  df_date <- df_date %>%
+    mutate(
+      NH4_add_mgL = pmax(NH3_corrected - NH4_bg_mgL, 0),
+      Cl_add_mgL  = pmax(Cl_corrected  - Cl_bg_mgL,  0),
+      
+      # concentrations in ug/L (useful for clear units later)
+      NH4_add_ugL = NH4_add_mgL * 1000,
+      Cl_add_ugL  = Cl_add_mgL  * 1000
+    )
+  
+  # ---- injectate ratio (pulse-specific): N : Cl mass ratio
+  # NOTE:
+  # - carboy_actual_N_g is grams of NH4 (NOT grams of N)
+  # - carboy_NaCl_g is grams of NaCl added
+  # Conversions:
+  # - NH4Cl = NH4 mass fraction = 18.04 / 53.49
+  # - NaCl = Cl mass fraction = 35.45/58.44
+  inj_ratio <- unique(
+    (df_date$carboy_actual_N_g * (18.04 / 53.49)) /
+      (df_date$carboy_NaCl_g * (35.45 / 58.44))
+  )
+  inj_ratio <- inj_ratio[is.finite(inj_ratio)][1]
+  
+  df_date <- df_date %>%
+    mutate(
+      inj_ratio = inj_ratio,
+      # conservative prediction for added NH4 based on added Cl
+      NH4_cons_add_ugL = Cl_add_ugL * inj_ratio
+    )
+  
+  # ---- TMR as cumulative recovered MASS (ug)
+  # TMR(t) = Sum: Q(t) (L/s) * C(t) (ug/L) dt  = ug
+  df_date <- df_date %>%
+    arrange(t_sec) %>%
+    filter(!is.na(t_sec)) %>%
+    distinct(t_sec, .keep_all = TRUE) %>%
+    mutate(
+      flux_Cl_ug_s      = Q_Ls * Cl_add_ugL,
+      flux_NH4_ug_s     = Q_Ls * NH4_add_ugL,
+      flux_NH4cons_ug_s = Q_Ls * NH4_cons_add_ugL,
+      
+      # Replace NA/Inf flux with 0 for integration
+      flux_Cl_ug_s      = ifelse(is.finite(flux_Cl_ug_s), flux_Cl_ug_s, 0),
+      flux_NH4_ug_s     = ifelse(is.finite(flux_NH4_ug_s), flux_NH4_ug_s, 0),
+      flux_NH4cons_ug_s = ifelse(is.finite(flux_NH4cons_ug_s), flux_NH4cons_ug_s, 0)
+    )
+  
+  df_date$TMR_Cl_ug      <- as.numeric(cumtrapz(df_date$t_sec, df_date$flux_Cl_ug_s))
+  df_date$TMR_NH4_ug     <- as.numeric(cumtrapz(df_date$t_sec, df_date$flux_NH4_ug_s))
+  df_date$TMR_NH4cons_ug <- as.numeric(cumtrapz(df_date$t_sec, df_date$flux_NH4cons_ug_s))
+  
+  # ---- TASCC-style uptake coefficient and spiraling metrics
+  # kw = (ln(injectate_ratio) - ln(TMR_NH4 / TMR_Cl)) / x
+  df_date <- df_date %>%
+    mutate(
+      TMR_ratio = ifelse(TMR_Cl_ug > 0 & TMR_NH4_ug > 0, TMR_NH4_ug / TMR_Cl_ug, NA_real_),
+      ln_TMR_ratio = log(TMR_ratio),
+      ln_inj_ratio = log(inj_ratio),
+      
+      kw  = (ln_inj_ratio - ln_TMR_ratio) / x_m, # 1/m
+      Sw_m = 1 / kw
+    )
+  
+  # ---- Choose concentration for uptake calculations and MM fit
+  df_date <- df_date %>%
+    mutate(
+      # Background-corrected (added) NH4 by default; total NH4 if use_total_NH4 = TRUE
+      C_for_fit_ugL = ifelse(use_total_NH4,  NH3_corrected * 1000, NH4_add_ugL),
+      
+      # uptake velocity Vf (m/s): Vf = (Q/w)/Sw, with Q in m3/s
+      Vf_m_s = ((Q_Ls / 1000) / w) / Sw_m,
+      
+      # areal uptake U (ug/m2/s): U = Vf * C(ug/m3); convert ug/L -> ug/m3 by *1000
+      U_ug_m2_s = Vf_m_s * (C_for_fit_ugL * 1000)
+    )
+  
+  # ---- identify rising/falling limb using tracer (Cl_add)
+  t_peak <- df_date$t_sec[which.max(df_date$Cl_add_ugL)]
+  df_date <- df_date %>%
+    mutate(
+      limb = ifelse(t_sec <= t_peak, "rising", "falling")
+    )
+  
+  # ---- QC filtering flag for fit-ready points (don’t drop yet; just flag)
+  df_date <- df_date %>%
+    mutate(
+      fit_ok = is.finite(U_ug_m2_s) &
+        is.finite(C_for_fit_ugL) &
+        is.finite(kw) & kw > 0 &
+        Cl_add_mgL > tracer_min_mgL &
+        C_for_fit_ugL > 0
+    )
+  
+  df_date
+}
+
+
+```
+
+#### Apply uptake fxn to all injections
+
+Group_by "date"
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+GBL_NH4_processed <- GBL_NH4_datq %>%
+  group_by(date) %>%
+  group_modify(~ process_pulse_one_date(.x,
+                                        bg_n = 2,
+                                        tracer_min_mgL = 0.0015, # 1/2 NH4 DL
+                                        use_total_NH4 = TRUE)) %>% # uses max background corrected NH4 in grab sample 
+  ungroup()
+
+head(GBL_NH4_processed)
+```
+
+```{r, warning=F, size = 'small', echo=F, include=F}
+
+GBL_NH4_edi_save <- GBL_NH4_processed%>%
+  dplyr::select(1:6, 8, 10,11, 13:15, 17:20, 23, 26)
+
+# write.csv(GBL_NH4_edi_save, "/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EDI_datasets/TSMQ_GBL_NH4_uptake_observations.csv")
+
+```
+
+#### Quality summary per pulse
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+BTC_sum <- GBL_NH4_processed %>%
+  group_by(date) %>%
+  summarize(
+    n = n(),
+    n_Cl = sum(Cl_add_mgL > 0, na.rm = TRUE),
+    max_Cl = max(Cl_add_mgL, na.rm = TRUE),
+    n_C = sum(C_for_fit_ugL > 0, na.rm = TRUE),
+    max_C = max(C_for_fit_ugL, na.rm = TRUE),
+    n_kw_pos = sum(is.finite(kw) & kw > 0, na.rm = TRUE),
+    kw_min = min(kw, na.rm = TRUE),
+    kw_max = max(kw, na.rm = TRUE),
+    n_U_fin = sum(is.finite(U_ug_m2_s), na.rm = TRUE),
+    U_min = min(U_ug_m2_s, na.rm = TRUE),
+    U_max = max(U_ug_m2_s, na.rm = TRUE),
+    n_fit = sum(fit_ok, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(n_fit)
+
+BTC_sum
+
+```
+
+#### Fit M-M to get uptake rates:
+
+-   fit on added concentration and exclude near-zero “controls”
+
+-   create an MM predictor that has an actual gradient
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+GBL_NH4_processed2 <- GBL_NH4_processed %>%
+  mutate(C_mm_ugL = NH4_add_ugL)   # background-corrected NH4 signal
+
+fit_dat <- GBL_NH4_processed2 %>%
+  filter(
+    fit_ok == TRUE,
+    C_mm_ugL > 0,
+    is.finite(C_mm_ugL),
+    is.finite(U_ug_m2_s),
+    U_ug_m2_s > 0
+  ) %>%
+  group_by(date) %>%
+  # drop the very first couple of post-peak points if they create numerical issues
+  filter(C_mm_ugL >= quantile(C_mm_ugL, 0.05, na.rm = TRUE)) %>%
+  ungroup()
+
+
+fit_dat <- fit_dat %>%
+  mutate(
+    U_scaled = U_ug_m2_s * 1e6   # arbitrary but usually will/ backtransform in block 
+  )
+
+```
+
+#### Screen pulse data to ensure identifiability of Michaelis–Menten (M-M) parameters
+
+*A. 'if(nrow(dat) \< 6):' Use 6+ points is a practical minimum*
+
+-   Enough degrees of freedom to estimate error
+
+-   Coverage across rising/peak/falling portions of the BTC-derived
+    concentration gradient
+
+-   Reduce the influence of high leverage values along the curve
+
+*B. 'if(n_distinct(C_mm_ugL) \< 4)': Consider only curves with a real
+concentration gradient.*
+
+-   With only 2–3 distinct concentrations, it’s still very easy for the
+    fit to be dominated by noise and produce equifinality
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+library(drc)
+
+fit_mm_one <- function(dat){
+  if(nrow(dat) < 6) return(NULL)
+  if(dplyr::n_distinct(dat$C_mm_ugL) < 3) return(NULL)
+  
+  # starting values: Vmax ~ max(U), Km ~ median(C)
+  vmax0 <- max(dat$U_scaled, na.rm = TRUE)
+  km0   <- stats::median(dat$C_mm_ugL, na.rm = TRUE)
+  
+  # drc expects a numeric start vector; names can vary by version, so keep simple
+  tryCatch(
+    drm(
+      U_scaled ~ C_mm_ugL,
+      data = dat,
+      fct  = MM.2(),
+      type = "continuous",
+      start = c(vmax0, km0)
+    ),
+    error = function(e) NULL
+  )
+}
+```
+
+#### Fit M-M models to individual pulse experiments
+
+```{r, size = 'small', echo=T, include=T}
+library(drc)
+
+mm_models <- fit_dat %>%
+  group_by(date) %>%
+  group_map(~ fit_mm_one(.x))
+
+# which dates succeeded?
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+mm_models_ok <- mm_models[mm_ok]
+
+mm_ok
+length(mm_models_ok)
+
+```
+
+#### Identify pulse experiments with successful kinetic fits
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+library(drc)
+
+# Vector of dates in the same order used by group_map()
+fit_dates <- fit_dat %>%
+  distinct(date) %>%
+  pull(date)
+
+# Logical vector: which models are non-NULL
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+
+# Dates with successful fits
+fit_dates_ok <- fit_dates[mm_ok]
+
+fit_dates_ok
+```
+
+#### Create final uptake results with uncertainty estimates
+
+```{r, warning=F, size = 'small', echo=T, include=T, tibble.width = Inf}
+
+# Add p-values + 95% CIs + back-transformed Vmax (and keep Km in ug/L)
+# Assumes: U_scaled = U_ug_m2_s * 1e6  (so Vmax_scaled is in scaled units)
+
+scale_factor <- 1e6  # U_scaled = U_ug_m2_s * scale_factor
+
+mm_summary <- purrr::map2_dfr(
+  mm_models[mm_ok],
+  fit_dates_ok,
+  ~{
+    mod <- .x
+    dt  <- .y
+    
+    cf <- coef(mod)
+    sm <- summary(mod)$coefficients
+    ci <- confint(mod)  # 95% CI by default
+    
+    # Pull params safely by name
+    d_hat <- unname(cf["d:(Intercept)"])  # Vmax in scaled units
+    e_hat <- unname(cf["e:(Intercept)"])  # Km in ug/L
+    
+    d_p   <- unname(sm["d:(Intercept)", "p-value"])
+    e_p   <- unname(sm["e:(Intercept)", "p-value"])
+    
+    d_ci  <- ci["d:(Intercept)", ]
+    e_ci  <- ci["e:(Intercept)", ]
+    
+    tibble(
+      date = dt,
+      
+      # Vmax (d) in scaled units + back-transformed to ug m-2 s-1
+      Vmax_d_scaled = d_hat,
+      Vmax_d_ug_m2_s = d_hat / scale_factor,
+      
+      # 95% CI for Vmax (scaled and back-transformed)
+      Vmax_d_scaled_lo = unname(d_ci[1]),
+      Vmax_d_scaled_hi = unname(d_ci[2]),
+      Vmax_d_ug_m2_s_lo = unname(d_ci[1]) / scale_factor,
+      Vmax_d_ug_m2_s_hi = unname(d_ci[2]) / scale_factor,
+      
+      # Km (e) in ug/L + 95% CI
+      Km_e_ugL = e_hat,
+      Km_e_ugL_lo = unname(e_ci[1]),
+      Km_e_ugL_hi = unname(e_ci[2]),
+      
+      # p-values for parameters
+      p_Vmax_d = d_p,
+      p_Km_e   = e_p
+    )
+  }
+)
+
+mm_summary
+
+```
+
+Only 0 of the 2 NH4 uptakes at GBL fit.
+
+## *==\> Next reach*
+
+## 2. NH~4~ uptake at GBU
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+GBU_NH4_datq <- readRDS("/Users/kellyloria/Documents/UNR/Ncycle/2024_workflow/24_GBU_NH3_BTC_input.rds")
+head(GBU_NH4_datq)
+```
+
+#### Apply uptake fxn to all injections
+
+Group_by "date"
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+GBU_NH4_processed <- GBU_NH4_datq %>%
+  group_by(date) %>%
+  group_modify(~ process_pulse_one_date(.x,
+                                        bg_n = 2,
+                                        tracer_min_mgL = 0.0015, # 1/2 NH4 DL
+                                        use_total_NH4 = TRUE)) %>% # uses max background corrected NH4 in grab sample 
+  ungroup()
+
+head(GBU_NH4_processed)
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=F}
+
+GBU_NH4_edi_save <- GBU_NH4_processed%>%
+  dplyr::select(1:6, 8, 10,11, 13:15, 17:20, 23, 26)
+
+# write.csv(GBU_NH4_edi_save, "/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EDI_datasets/TSMQ_GBU_NH4_uptake_observations.csv")
+
+```
+
+
+
+#### Quality summary per pulse
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+BTC_sum <- GBU_NH4_processed %>%
+  group_by(date) %>%
+  summarize(
+    n = n(),
+    n_Cl = sum(Cl_add_mgL > 0, na.rm = TRUE),
+    max_Cl = max(Cl_add_mgL, na.rm = TRUE),
+    n_C = sum(C_for_fit_ugL > 0, na.rm = TRUE),
+    max_C = max(C_for_fit_ugL, na.rm = TRUE),
+    n_kw_pos = sum(is.finite(kw) & kw > 0, na.rm = TRUE),
+    kw_min = min(kw, na.rm = TRUE),
+    kw_max = max(kw, na.rm = TRUE),
+    n_U_fin = sum(is.finite(U_ug_m2_s), na.rm = TRUE),
+    U_min = min(U_ug_m2_s, na.rm = TRUE),
+    U_max = max(U_ug_m2_s, na.rm = TRUE),
+    n_fit = sum(fit_ok, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(n_fit)
+
+BTC_sum
+
+```
+
+#### Fit M-M to get uptake rates:
+
+-   fit on added concentration and exclude near-zero “controls”
+
+-   create an MM predictor that has an actual gradient
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+library(drc)
+
+GBU_NH4_processed2 <- GBU_NH4_processed %>%
+  mutate(C_mm_ugL = NH4_add_ugL)   # background-corrected NH4 signal
+
+fit_dat <- GBU_NH4_processed2 %>%
+  filter(
+    fit_ok == TRUE,
+    C_mm_ugL > 0,
+    is.finite(C_mm_ugL),
+    is.finite(U_ug_m2_s),
+    U_ug_m2_s > 0
+  ) %>%
+  group_by(date) %>%
+  # drop the very first couple of post-peak points if they create numerical issues
+  filter(C_mm_ugL >= quantile(C_mm_ugL, 0.05, na.rm = TRUE)) %>%
+  ungroup()
+
+
+fit_dat <- fit_dat %>%
+  mutate(
+    U_scaled = U_ug_m2_s * 1e6   # arbitrary but usually will/ backtransform in block 
+  )
+
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=F}
+
+GBU_NH4_edi_save <- GBU_NH4_processed%>%
+  dplyr::select(1:6, 8, 10,11, 13:15, 17:20, 23, 26)
+
+write.csv(GBL_NH4_edi_save, "/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EDI_datasets/TSMQ_GBU_NH4_uptake_observations.csv")
+
+```
+
+
+#### Fit M-M to individual pulse experiments
+
+```{r, size = 'small', echo=T, include=T}
+library(drc)
+
+mm_models <- fit_dat %>%
+  group_by(date) %>%
+  group_map(~ fit_mm_one(.x))
+
+# which dates succeeded?
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+mm_models_ok <- mm_models[mm_ok]
+
+mm_ok
+length(mm_models_ok)
+
+```
+
+#### Identify pulse experiments with successful kinetic fits
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+library(drc)
+
+# Vector of dates in the same order used by group_map()
+fit_dates <- fit_dat %>%
+  distinct(date) %>%
+  pull(date)
+
+# Logical vector: which models are non-NULL
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+
+# Dates with successful fits
+fit_dates_ok <- fit_dates[mm_ok]
+
+fit_dates_ok
+```
+
+#### Create final uptake results with uncertainty estimates
+
+```{r, warning=F, size = 'small', echo=T, include=T, tibble.width = Inf}
+
+# Add p-values + 95% CIs + back-transformed Vmax (and keep Km in ug/L)
+# Assumes: U_scaled = U_ug_m2_s * 1e6  (so Vmax_scaled is in scaled units)
+
+scale_factor <- 1e6  # U_scaled = U_ug_m2_s * scale_factor
+
+mm_summary <- purrr::map2_dfr(
+  mm_models[mm_ok],
+  fit_dates_ok,
+  ~{
+    mod <- .x
+    dt  <- .y
+    
+    cf <- coef(mod)
+    sm <- summary(mod)$coefficients
+    ci <- confint(mod)  # 95% CI by default
+    
+    # Pull params safely by name
+    d_hat <- unname(cf["d:(Intercept)"])  # Vmax in scaled units
+    e_hat <- unname(cf["e:(Intercept)"])  # Km in ug/L
+    
+    d_p   <- unname(sm["d:(Intercept)", "p-value"])
+    e_p   <- unname(sm["e:(Intercept)", "p-value"])
+    
+    d_ci  <- ci["d:(Intercept)", ]
+    e_ci  <- ci["e:(Intercept)", ]
+    
+    tibble(
+      date = dt,
+      
+      # Vmax (d) in scaled units + back-transformed to ug m-2 s-1
+      Vmax_d_scaled = d_hat,
+      Vmax_d_ug_m2_s = d_hat / scale_factor,
+      
+      # 95% CI for Vmax (scaled and back-transformed)
+      Vmax_d_scaled_lo = unname(d_ci[1]),
+      Vmax_d_scaled_hi = unname(d_ci[2]),
+      Vmax_d_ug_m2_s_lo = unname(d_ci[1]) / scale_factor,
+      Vmax_d_ug_m2_s_hi = unname(d_ci[2]) / scale_factor,
+      
+      # Km (e) in ug/L + 95% CI
+      Km_e_ugL = e_hat,
+      Km_e_ugL_lo = unname(e_ci[1]),
+      Km_e_ugL_hi = unname(e_ci[2]),
+      
+      # p-values for parameters
+      p_Vmax_d = d_p,
+      p_Km_e   = e_p
+    )
+  }
+)
+
+mm_summary
+
+```
+
+Only 0 of the 5 NH4 uptakes at GBU fit.
+
+## *==\> Next reach*
+
+## 3.  NH~4~ uptake uptake at BWL
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+BWL_NH4_datq <- readRDS("/Users/kellyloria/Documents/UNR/Ncycle/2024_workflow/24_BWL_NH3_BTC_input.rds")
+head(BWL_NH4_datq)
+```
+
+#### Apply uptake fxn to all injections
+
+Group_by "date"
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+BWL_NH4_processed <- BWL_NH4_datq %>%
+  group_by(date) %>%
+  group_modify(~ process_pulse_one_date(.x,
+                                        bg_n = 2,
+                                        tracer_min_mgL = 0.0015, # 1/2 NH4 DL
+                                        use_total_NH4 = TRUE)) %>% # uses max background corrected NH4 in grab sample 
+  ungroup()
+
+head(BWL_NH4_processed)
+```
+
+#### Quality summary per pulse
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+BTC_sum <- BWL_NH4_processed %>%
+  group_by(date) %>%
+  summarize(
+    n = n(),
+    n_Cl = sum(Cl_add_mgL > 0, na.rm = TRUE),
+    max_Cl = max(Cl_add_mgL, na.rm = TRUE),
+    n_C = sum(C_for_fit_ugL > 0, na.rm = TRUE),
+    max_C = max(C_for_fit_ugL, na.rm = TRUE),
+    n_kw_pos = sum(is.finite(kw) & kw > 0, na.rm = TRUE),
+    kw_min = min(kw, na.rm = TRUE),
+    kw_max = max(kw, na.rm = TRUE),
+    n_U_fin = sum(is.finite(U_ug_m2_s), na.rm = TRUE),
+    U_min = min(U_ug_m2_s, na.rm = TRUE),
+    U_max = max(U_ug_m2_s, na.rm = TRUE),
+    n_fit = sum(fit_ok, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(n_fit)
+
+BTC_sum
+
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=F}
+
+BWL_NH4_edi_save <- BWL_NH4_processed%>%
+  dplyr::select(1:6, 8, 10,11, 13:15, 17:20, 23, 26)
+
+# write.csv(BWL_NH4_edi_save, "/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EDI_datasets/TSMQ_BWL_NH4_uptake_observations.csv")
+
+```
+
+
+
+
+#### Fit M-M to get uptake rates:
+
+-   fit on added concentration and exclude near-zero “controls”
+
+-   create an M-M predictor that has an actual gradient
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+library(drc)
+
+BWL_NH4_processed2 <- BWL_NH4_processed %>%
+  mutate(C_mm_ugL = NH4_add_ugL)   # background-corrected NH4 signal
+
+fit_dat <- BWL_NH4_processed2 %>%
+  filter(
+    fit_ok == TRUE,
+    C_mm_ugL > 0,
+    is.finite(C_mm_ugL),
+    is.finite(U_ug_m2_s),
+    U_ug_m2_s > 0
+  ) %>%
+  group_by(date) %>%
+  # drop the very first couple of post-peak points if they create numerical issues
+  filter(C_mm_ugL >= quantile(C_mm_ugL, 0.05, na.rm = TRUE)) %>%
+  ungroup()
+
+
+fit_dat <- fit_dat %>%
+  mutate(
+    U_scaled = U_ug_m2_s * 1e6   # arbitrary but usually will/ backtransform in block 
+  )
+
+```
+
+#### Fit M-M models to individual pulse experiments
+
+```{r, size = 'small', echo=T, include=T}
+library(drc)
+
+mm_models <- fit_dat %>%
+  group_by(date) %>%
+  group_map(~ fit_mm_one(.x))
+
+# which dates succeeded?
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+mm_models_ok <- mm_models[mm_ok]
+
+mm_ok
+length(mm_models_ok)
+
+```
+
+#### Identify pulse experiments with successful kinetic fits
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+library(drc)
+
+# Vector of dates in the same order used by group_map()
+fit_dates <- fit_dat %>%
+  distinct(date) %>%
+  pull(date)
+
+# Logical vector: which models are non-NULL
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+
+# Dates with successful fits
+fit_dates_ok <- fit_dates[mm_ok]
+
+fit_dates_ok
+```
+
+#### Create final uptake results with uncertainty estimates
+
+```{r, warning=F, size = 'small', echo=T, include=T, tibble.width = Inf}
+
+# Add p-values + 95% CIs + back-transformed Vmax (and keep Km in ug/L)
+# Assumes: U_scaled = U_ug_m2_s * 1e6  (so Vmax_scaled is in scaled units)
+
+scale_factor <- 1e6  # U_scaled = U_ug_m2_s * scale_factor
+
+mm_summary <- purrr::map2_dfr(
+  mm_models[mm_ok],
+  fit_dates_ok,
+  ~{
+    mod <- .x
+    dt  <- .y
+    
+    cf <- coef(mod)
+    sm <- summary(mod)$coefficients
+    ci <- confint(mod)  # 95% CI by default
+    
+    # Pull params safely by name
+    d_hat <- unname(cf["d:(Intercept)"])  # Vmax in scaled units
+    e_hat <- unname(cf["e:(Intercept)"])  # Km in ug/L
+    
+    d_p   <- unname(sm["d:(Intercept)", "p-value"])
+    e_p   <- unname(sm["e:(Intercept)", "p-value"])
+    
+    d_ci  <- ci["d:(Intercept)", ]
+    e_ci  <- ci["e:(Intercept)", ]
+    
+    tibble(
+      date = dt,
+      
+      # Vmax (d) in scaled units + back-transformed to ug m-2 s-1
+      Vmax_d_scaled = d_hat,
+      Vmax_d_ug_m2_s = d_hat / scale_factor,
+      
+      # 95% CI for Vmax (scaled and back-transformed)
+      Vmax_d_scaled_lo = unname(d_ci[1]),
+      Vmax_d_scaled_hi = unname(d_ci[2]),
+      Vmax_d_ug_m2_s_lo = unname(d_ci[1]) / scale_factor,
+      Vmax_d_ug_m2_s_hi = unname(d_ci[2]) / scale_factor,
+      
+      # Km (e) in ug/L + 95% CI
+      Km_e_ugL = e_hat,
+      Km_e_ugL_lo = unname(e_ci[1]),
+      Km_e_ugL_hi = unname(e_ci[2]),
+      
+      # p-values for parameters
+      p_Vmax_d = d_p,
+      p_Km_e   = e_p
+    )
+  }
+)
+
+mm_summary
+
+```
+
+3 of the 8 NH4 uptakes at BWL fit
+
+##### Visualize uptakes
+
+```{r, warning=FALSE, message=FALSE, echo=F, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# --- helper: Michaelis–Menten function (MM.2 form: U = (Vmax * C) / (Km + C))
+mm_fun <- function(C, Vmax, Km){
+  (Vmax * C) / (Km + C)
+}
+
+# --- Build prediction grid + CI ribbon per date
+pred_dat <- fit_dat %>%
+  semi_join(mm_summary, by = "date") %>%             # only dates with successful fits
+  group_by(date) %>%
+  summarize(C_min = min(C_mm_ugL, na.rm = TRUE),
+            C_max = max(C_mm_ugL, na.rm = TRUE),
+            .groups = "drop") %>%
+  left_join(mm_summary, by = "date") %>%
+  rowwise() %>%
+  do({
+    d <- .
+    C_grid <- seq(d$C_min, d$C_max, length.out = 200)
+
+    # best fit
+    U_hat <- mm_fun(C_grid, d$Vmax_d_scaled, d$Km_e_ugL)
+
+    # CI ribbon from parameter CI bounds (simple envelope)
+    # NOTE: This is an approximation (uses independent bounds), but reviewer-friendly and transparent.
+    U_lo <- mm_fun(C_grid, d$Vmax_d_scaled_lo, d$Km_e_ugL_hi)  # conservative low uptake
+    U_hi <- mm_fun(C_grid, d$Vmax_d_scaled_hi, d$Km_e_ugL_lo)  # conservative high uptake
+
+    tibble(
+      date = d$date,
+      C_mm_ugL = C_grid,
+      U_hat = U_hat,
+      U_lo  = U_lo,
+      U_hi  = U_hi
+    )
+  }) %>%
+  ungroup()
+
+```
+
+```{r, warning=F, echo=F, include=T,  fig.width=9, fig.height=3}
+
+pred_dat <- pred_dat %>%
+  left_join(
+    mm_summary %>%
+      transmute(date,
+                ci_ok = is.finite(Vmax_d_scaled_lo) & is.finite(Vmax_d_scaled_hi) &
+                        is.finite(Km_e_ugL_lo) & is.finite(Km_e_ugL_hi) &
+                        (Vmax_d_scaled_lo > 0) & (Km_e_ugL_lo > 0)),
+    by="date"
+  )
+
+p_mm <- ggplot() +
+  geom_ribbon(
+    data = pred_dat %>% filter(ci_ok),
+    aes(x = C_mm_ugL, ymin = (U_lo)/scale_factor, ymax = (U_hi)/scale_factor),
+    alpha = 0.25
+  ) +
+  geom_line(
+    data = pred_dat,
+    aes(x = C_mm_ugL, y = c(U_hat/scale_factor)),
+    linewidth = 0.8
+  ) +
+  geom_point(
+    data = fit_dat %>% semi_join(mm_summary, by="date"),
+    aes(x = C_mm_ugL, y = (U_scaled/scale_factor), shape = limb),
+    size = 2, alpha = 0.9
+  ) +
+    labs(
+    x = expression("Added NH"[4]*" concentration ("*mu*"g L"^{-1}*")"),
+    y = expression("Areal uptake, U ("*mu*"g m"^{-2}*" s"^{-1}*")"),
+    shape = "BTC limb"
+  ) +
+  facet_wrap(~date, scales="free") +
+  theme_bw()
+
+p_mm
+
+```
+
+None look that significant.
+
+## *==\> Next Reach*
+
+## 4.  NH~4~ uptake at BWU
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+BWU_NH4_datq <- readRDS("/Users/kellyloria/Documents/UNR/Ncycle/2024_workflow/24_BWU_NH3_BTC_input.rds")
+head(BWU_NH4_datq)
+```
+
+#### Apply uptake fxn to all injections
+
+Group_by "date"
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+library(drc)
+
+BWU_NH4_processed <- BWU_NH4_datq %>%
+  group_by(date) %>%
+  group_modify(~ process_pulse_one_date(.x,
+                                        bg_n = 2,
+                                        tracer_min_mgL = 0.0015, # 1/2 NH4 DL
+                                        use_total_NH4 = TRUE)) %>% # uses max background corrected NH4 in grab sample 
+  ungroup()
+
+head(BWU_NH4_processed)
+```
+
+#### Quality summary per pulse
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+
+BTC_sum <- BWU_NH4_processed %>%
+  group_by(date) %>%
+  summarize(
+    n = n(),
+    n_Cl = sum(Cl_add_mgL > 0, na.rm = TRUE),
+    max_Cl = max(Cl_add_mgL, na.rm = TRUE),
+    n_C = sum(C_for_fit_ugL > 0, na.rm = TRUE),
+    max_C = max(C_for_fit_ugL, na.rm = TRUE),
+    n_kw_pos = sum(is.finite(kw) & kw > 0, na.rm = TRUE),
+    kw_min = min(kw, na.rm = TRUE),
+    kw_max = max(kw, na.rm = TRUE),
+    n_U_fin = sum(is.finite(U_ug_m2_s), na.rm = TRUE),
+    U_min = min(U_ug_m2_s, na.rm = TRUE),
+    U_max = max(U_ug_m2_s, na.rm = TRUE),
+    n_fit = sum(fit_ok, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(n_fit)
+
+BTC_sum
+
+```
+
+
+
+
+```{r, warning=F, size = 'small', echo=F, include=F}
+
+BWU_NH4_edi_save <- BWU_NH4_processed%>%
+  dplyr::select(1:6, 8, 10,11, 13:15, 17:20, 23, 26)
+
+# write.csv(BWU_NH4_edi_save, "/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/EDI_datasets/TSMQ_BWU_NH4_uptake_observations.csv")
+
+```
+
+
+#### Fit M-M to get uptake rates:
+
+-   fit on added concentration and exclude near-zero “controls”
+
+-   create an MM predictor that has an actual gradient
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+BWU_NH4_processed2 <- BWU_NH4_processed %>%
+  mutate(C_mm_ugL = NH4_add_ugL)   # background-corrected NH4 signal
+
+fit_dat <- BWU_NH4_processed2 %>%
+  filter(
+    fit_ok == TRUE,
+    C_mm_ugL > 0,
+    is.finite(C_mm_ugL),
+    is.finite(U_ug_m2_s),
+    U_ug_m2_s > 0
+  ) %>%
+  group_by(date) %>%
+  # drop the very first couple of post-peak points if they create numerical issues
+  filter(C_mm_ugL >= quantile(C_mm_ugL, 0.05, na.rm = TRUE)) %>%
+  ungroup()
+
+
+fit_dat <- fit_dat %>%
+  mutate(
+    U_scaled = U_ug_m2_s * 1e6   # arbitrary but usually will/ backtransform in block 
+  )
+
+```
+
+#### Fit M-M models to individual pulse experiments
+
+```{r, size = 'small', echo=T, include=T}
+library(drc)
+
+mm_models <- fit_dat %>%
+  group_by(date) %>%
+  group_map(~ fit_mm_one(.x))
+
+# which dates succeeded?
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+mm_models_ok <- mm_models[mm_ok]
+
+mm_ok
+length(mm_models_ok)
+
+```
+
+#### Identify pulse experiments with successful kinetic fits
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+library(drc)
+
+
+# Vector of dates in the same order used by group_map()
+fit_dates <- fit_dat %>%
+  distinct(date) %>%
+  pull(date)
+
+# Logical vector: which models are non-NULL
+mm_ok <- purrr::map_lgl(mm_models, ~ !is.null(.x))
+
+# Dates with successful fits
+fit_dates_ok <- fit_dates[mm_ok]
+
+fit_dates_ok
+```
+
+#### Create final uptake results with uncertainty estimates
+
+```{r, warning=F, size = 'small', echo=T, include=T, tibble.width = Inf}
+
+# Add p-values + 95% CIs + back-transformed Vmax (and keep Km in ug/L)
+# Assumes: U_scaled = U_ug_m2_s * 1e6  (so Vmax_scaled is in scaled units)
+
+scale_factor <- 1e6  # U_scaled = U_ug_m2_s * scale_factor
+
+mm_summary <- purrr::map2_dfr(
+  mm_models[mm_ok],
+  fit_dates_ok,
+  ~{
+    mod <- .x
+    dt  <- .y
+    
+    cf <- coef(mod)
+    sm <- summary(mod)$coefficients
+    ci <- confint(mod)  # 95% CI by default
+    
+    # Pull params safely by name
+    d_hat <- unname(cf["d:(Intercept)"])  # Vmax in scaled units
+    e_hat <- unname(cf["e:(Intercept)"])  # Km in ug/L
+    
+    d_p   <- unname(sm["d:(Intercept)", "p-value"])
+    e_p   <- unname(sm["e:(Intercept)", "p-value"])
+    
+    d_ci  <- ci["d:(Intercept)", ]
+    e_ci  <- ci["e:(Intercept)", ]
+    
+    tibble(
+      date = dt,
+      
+      # Vmax (d) in scaled units + back-transformed to ug m-2 s-1
+      Vmax_d_scaled = d_hat,
+      Vmax_d_ug_m2_s = d_hat / scale_factor,
+      
+      # 95% CI for Vmax (scaled and back-transformed)
+      Vmax_d_scaled_lo = unname(d_ci[1]),
+      Vmax_d_scaled_hi = unname(d_ci[2]),
+      Vmax_d_ug_m2_s_lo = unname(d_ci[1]) / scale_factor,
+      Vmax_d_ug_m2_s_hi = unname(d_ci[2]) / scale_factor,
+      
+      # Km (e) in ug/L + 95% CI
+      Km_e_ugL = e_hat,
+      Km_e_ugL_lo = unname(e_ci[1]),
+      Km_e_ugL_hi = unname(e_ci[2]),
+      
+      # p-values for parameters
+      p_Vmax_d = d_p,
+      p_Km_e   = e_p
+    )
+  }
+)
+
+mm_summary
+
+```
+
+No delectable uptake BWU from 4 injections. 
+
+End of script.
