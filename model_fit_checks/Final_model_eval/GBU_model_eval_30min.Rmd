@@ -613,128 +613,119 @@ ggplotly(p)
 ### Table summarizing excluded data from cleaned model output: 
 
 ```{r, warning=F, size = 'small', echo=FALSE, fig.width=5, fig.height=12}
-## total days
-total_days <- length(unique(na.omit(mod.env.agg$date)))
 
-mod.env.agg1 <- input_dat%>%
-  mutate(date= as.Date(solar.time))%>%
+
+#####
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(knitr)
+library(kableExtra)
+
+# ---- 1) Define "full DO days" from input_dat (48 half-hour intervals) ----
+do_days <- input_dat %>%
+  mutate(date = as.Date(solar.time)) %>%
   group_by(date) %>%
-  dplyr:: summarise(
-    DO.obs = mean(DO.obs, na.rm=T),
-    DO.sat = mean(DO.sat, na.rm=T),
-    depth = mean(depth, na.rm=T),
-    temp.water = mean(temp.water, na.rm=T),
-    light = mean(light, na.rm=T),
-    discharge =  mean(discharge, na.rm=T))
+  summarise(
+    n_intervals = sum(!is.na(DO.obs)),   # or use !is.na(DO.sat) depending on your definition
+    .groups = "drop"
+  ) %>%
+  mutate(full_DO_day = n_intervals >= 48)
 
-### Days with DO but not metab
-df_length_c <- mod.env.agg1 %>% 
-  left_join(met.clean)
-num_na_clean <- sum(is.na(df_length_c$GPP_mean))
+total_DO_days_any   <- n_distinct(do_days$date)
+total_DO_days_full  <- sum(do_days$full_DO_day, na.rm = TRUE)
 
-clean_gpp <- met.full %>%
-  filter(GPP_2.5pct >= 0 & GPP_daily_Rhat <= 1.05) 
-clean_gpp_day <-length(clean_gpp$date)
+full_DO_dates <- do_days %>% filter(full_DO_day) %>% pull(date)
 
+# ---- 2) Day-level metabolism table and flags ----
+met_day <- met.full %>%
+  mutate(date = as.Date(date)) %>%
+  distinct(date, .keep_all = TRUE)  # ensure one row per day; remove if already guaranteed daily
 
-clean_ER <- met.full %>%
-  filter(ER_97.5pct <= 0 & ER_daily_Rhat <= 1.05) 
-clean_ER_day <-length((clean_ER$ER_mean))
-clean_K600_day <-length(na.omit(met.full$K600_daily_mean))
+met_days_modeled_any <- n_distinct(met_day$date)
 
+# Join metabolism onto full DO days only (this makes denominators explicit)
+met_class <- tibble(date = full_DO_dates) %>%
+  left_join(met_day, by = "date") %>%
+  mutate(
+    has_any_metab = !is.na(GPP_mean) | !is.na(ER_mean) | !is.na(K600_daily_mean),
 
-# high flow days
-dat2 <- input_dat%>% filter(discharge>5) %>%
-  mutate(date =as.Date(solar.time))
-high_flow_day <- length(unique(dat2$date))
+    # "clean" criteria
+    clean_GPP  = !is.na(GPP_daily_Rhat)  & GPP_daily_Rhat  <= 1.05 & !is.na(GPP_2.5pct)  & GPP_2.5pct  >= 0,
+    clean_ER   = !is.na(ER_daily_Rhat)   & ER_daily_Rhat   <= 1.05 & !is.na(ER_97.5pct)  & ER_97.5pct  <= 0,
+    clean_K600 = !is.na(K600_daily_Rhat) & K600_daily_Rhat <= 1.05,
 
-# unrealistic GPP
-unrealistic_gpp <- met.full %>% 
-  filter(GPP_97.5pct < 0 ) 
-negative_GPP_day <- length(unique(unrealistic_gpp$date))
+    clean_all  = clean_GPP & clean_ER & clean_K600,
 
-# unrealistic ER
-unrealistic_ER <- met.full %>% 
-  filter(ER_2.5pct > 0 ) 
-pos_ER_day <- length(unique(unrealistic_ER$date))
+    # "unreasonable" estimates
+    unreasonable_GPP = !is.na(GPP_daily_Rhat) & !is.na(GPP_97.5pct) & (GPP_daily_Rhat > 1.05 & GPP_97.5pct < 0),
+    unreasonable_ER  = !is.na(ER_daily_Rhat)  & !is.na(ER_2.5pct)   & (ER_daily_Rhat > 1.05 & ER_2.5pct > 0),
+    poor_K600        = !is.na(K600_daily_Rhat) & (K600_daily_Rhat > 1.05)
+  )
 
-# Clean days with no output for GPP 
-df_length <- mod.env.full %>% 
-  left_join(met.full)
-num_na_GPP <- sum(is.na(df_length$GPP_mean))
+# ---- 3) Counts (all denominators based on FULL DO DAYS) ----
+denom <- length(full_DO_dates)
 
-# Clean days with no output for ER 
-df_length <- mod.env.full %>% 
-  left_join(met.full)
-num_na_ER <- sum(is.na(df_length$ER_daily_mean))
+n_metab_any   <- sum(met_class$has_any_metab, na.rm = TRUE)
+n_metab_none  <- denom - n_metab_any
 
+n_clean_all   <- sum(met_class$clean_all, na.rm = TRUE)
+n_clean_gpp   <- sum(met_class$clean_GPP, na.rm = TRUE)
+n_clean_er    <- sum(met_class$clean_ER, na.rm = TRUE)
+n_clean_k600  <- sum(met_class$clean_K600, na.rm = TRUE)
 
-poor_gpp <- met.full %>% 
-  filter(GPP_daily_Rhat > 1.05) 
-poor_gpp_day <- length(unique(poor_gpp$date))
+n_unr_gpp     <- sum(met_class$unreasonable_GPP, na.rm = TRUE)
+n_unr_er      <- sum(met_class$unreasonable_ER, na.rm = TRUE)
+n_poor_k600   <- sum(met_class$poor_K600, na.rm = TRUE)
 
-poor_ER <- met.full %>% 
-  filter(ER_daily_Rhat > 1.05) 
-poor_ER_day <- length(unique(poor_ER$date))
-
-poor_K600 <- met.full %>% 
-  filter(K600_daily_Rhat > 1.05) 
-poor_K600_day <- length(unique(poor_K600$date))
-
-## percents 
-pertot <- round((total_days/total_days)*100,3)
-perna <- round((num_na_clean/total_days)*100,1)
-pernaGPP <- round((num_na_GPP/total_days)*100,1)
-perPoorGPP <- round((poor_gpp_day/total_days)*100,1)
-perPoorER <- round((poor_ER_day/total_days)*100,1)
-perPoorK600 <- round((poor_K600_day/total_days)*100,1)
-perNegGPP <- round((negative_GPP_day/total_days)*100,1)
-perPosER <- round((pos_ER_day/total_days)*100,1)
-perHflow <- round((high_flow_day/total_days)*100,1)
-
-met_days <- length(unique(met.full$date))
-
-
-per_clean_gpp <- round((clean_gpp_day/met_days)*100,1)
-per_clean_ER <- round((clean_ER_day/met_days)*100,1)
-
-
-
-# Create table
+# ---- 4) Build a clearer summary table ----
 excluded_summary <- tibble(
-  `Number of Days` = c(total_days, num_na_clean, high_flow_day,
-                       num_na_GPP,
-                       poor_gpp_day, poor_ER_day, poor_K600_day,
-                       negative_GPP_day, pos_ER_day,
-                       clean_gpp_day,
-                       clean_ER_day), 
-  `Explaination` = c("Total days of DO observations", "Total days removed", "Days with high flow",
-                     "Days model was unable to fit", "days where GPP rhat > 1.05", "days where ER rhat > 1.05", 
-                     "days where K600 rhat > 1.05",
-                     "days where modeled GPP was negative", "days where modeled ER was positive",
-                     "days with clean GPP fits >= 0",
-                    "days with clean ER fits <= 0"
-                     ),
-    `Percent of Days` = c(pertot,
-                          perna, 
-                          perHflow,
-                          pernaGPP,
-                          perPoorGPP,
-                          perPoorER, 
-                          perPoorK600, 
-                          perNegGPP,
-                          perPosER,
-                          per_clean_gpp,
-                          per_clean_ER))
+  Metric = c(
+   # "Total DO days (any coverage)",
+    "Total DO days (FULL: >= 48 half-hour intervals)",
+    "Days with ANY metabolism output (on full DO days)",
+    "Days with NO metabolism output (on full DO days)",
+    "Days with CLEAN metabolism (GPP+ER+K600 all pass)",
+    "Days with CLEAN GPP (Rhat<=1.05 & GPP_2.5pct>=0)",
+    "Days with CLEAN ER (Rhat<=1.05 & ER_97.5pct<=0)",
+    "Days with CLEAN K600 (Rhat<=1.05)",
+    "Days with UNREASONABLE GPP (Rhat>1.05 & GPP_97.5pct<0)",
+    "Days with UNREASONABLE ER (Rhat>1.05 & ER_2.5pct>0)",
+    "Days with poor K600 (Rhat>1.05)"
+  ),
+  `Number of Days` = c(
+   # total_DO_days_any,
+    denom,
+    n_metab_any,
+    n_metab_none,
+    n_clean_all,
+    n_clean_gpp,
+    n_clean_er,
+    n_clean_k600,
+    n_unr_gpp,
+    n_unr_er,
+    n_poor_k600
+  ),
+  `Percent of FULL DO days` = c(
+   # round(total_DO_days_any / denom * 100, 1),
+    100.0,
+    round(n_metab_any  / denom * 100, 1),
+    round(n_metab_none / denom * 100, 1),
+    round(n_clean_all  / denom * 100, 1),
+    round(n_clean_gpp  / denom * 100, 1),
+    round(n_clean_er   / denom * 100, 1),
+    round(n_clean_k600 / denom * 100, 1),
+    round(n_unr_gpp    / denom * 100, 1),
+    round(n_unr_er     / denom * 100, 1),
+    round(n_poor_k600  / denom * 100, 1)
+  )
+)
 
-
-# Print formatted table
 excluded_summary %>%
   kable() %>%
-  kable_styling(font_size = 15) %>%  
-  row_spec(0:2, bold = TRUE, font_size = 16) %>% 
-  row_spec(2, hline_after = TRUE)  %>%
-  row_spec(10:11, bold=T, italic = TRUE, font_size = 16)  
+  kable_styling(font_size = 15) %>%
+  row_spec(0, bold = TRUE, font_size = 16)
+
 
 ```
 
