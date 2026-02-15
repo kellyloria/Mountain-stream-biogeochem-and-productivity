@@ -485,7 +485,7 @@ xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
    scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94", "#fad311")) +
 #   scale_color_viridis_d(option = "viridis", name = "Water year") +
   theme_classic() +
-          annotate("text", x = 7, y = -28, label = "Lower reach\nlarge creek (BWL)",size =4, fontface = "bold", hjust = 0.5) 
+          annotate("text", x = 7, y = -28, label = "Lower reach\nlarge creek",size =4, fontface = "bold", hjust = 0.5) 
 # 
 
 BWU_KD_plot <- ggplot(covariat_datq%>%dplyr::filter(site=="BWU" & water_year<2025), aes(x = GPP_mean, y = ER_mean, color = as.factor(water_year))) +
@@ -499,7 +499,7 @@ xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
   scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94", "#fad311")) +
 #   scale_color_viridis_d(option = "viridis", name = "Water year") +
   theme_classic() +
-            annotate("text", x = 7, y = -28, label = "Upper reach\nlarge creek (BWU)", size = 4, fontface = "bold", hjust = 0.5) 
+            annotate("text", x = 7, y = -28, label = "Upper reach\nlarge creek", size = 4, fontface = "bold", hjust = 0.5) 
 
 
 
@@ -532,7 +532,7 @@ GBU_KD_plot <- ggplot() +
 
  # scale_color_viridis_d(option = "viridis", name = "Water year") +
   theme_classic() +
-        annotate("text", x = 7, y = -28, label = "Upper reach\nsmall creek (GBU)", size = 4, fontface = "bold", hjust = 0.5) 
+        annotate("text", x = 7, y = -28, label = "Upper reach\nsmall creek", size = 4, fontface = "bold", hjust = 0.5) 
 
 GBU_KD_plot
 
@@ -556,7 +556,7 @@ GBL_KD_plot <- ggplot() +
  #scale_color_viridis_d(option = "viridis",  name = "Water year") +
     scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94","#fad311")) +
   theme_classic() +
-      annotate("text", x = 7, y = -28, label = "Lower reach\nsmall creek (GBL)", size = 4, fontface = "bold", hjust = 0.5) 
+      annotate("text", x = 7, y = -28, label = "Lower reach\nsmall creek", size = 4, fontface = "bold", hjust = 0.5) 
 
 
 ```
