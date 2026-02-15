@@ -4,7 +4,7 @@ Analyses used in manuscript *Mountain stream ecosystem metabolism and nitrogen c
 
 # Workflow
 - *Gas exchange* calculated from Ar:N2 injections https://github.com/kellyloria/Ar-gas-exchange-in-tahoe-streams/tree/main
-- *Nitrogen uptake estiamtes* from the  TSACC method: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/tree/main/Revised_uptake_TSACC
+- *Nitrogen uptake estiamtes* from the  TSACC method: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/tree/main/Revised_uptake_TSACC%20
 - *Metabolism model evaluation*: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/tree/main/model_fit_checks/Final_model_eval
   
 - Figures for the manuscript: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/blob/main/2026_JGR_figures.Rmd
