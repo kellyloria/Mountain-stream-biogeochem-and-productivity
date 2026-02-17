@@ -3,9 +3,11 @@ title: 'Streammetabolizer output for BWU'
 author: "Kelly Loria"
 date: "2025-02-04"
 output:
-   html_document:
-    theme: united
-    highlight: tango
+  github_document:
+    toc: true
+    toc_depth: 3
+    html_preview: false
+always_allow_html: true
 editor_options: 
   markdown: 
     wrap: 72
@@ -642,3 +644,4 @@ final_plot
 ```{r, warning=F, size = 'small', echo=FALSE, fig.width=5, fig.height=12}
 pander::pander(sessionInfo())
 ```
+
