@@ -5,10 +5,10 @@ Analyses used in manuscript *Mountain stream ecosystem metabolism and nitrogen c
 # Workflow
 - *Gas exchange* calculated from Ar:N2 injections https://github.com/kellyloria/Ar-gas-exchange-in-tahoe-streams/tree/main
 - *Nitrogen uptake estimates* from the  TSACC method: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/tree/main/Revised_uptake_TSACC%20
-- *Metabolism model evaluation*: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/blob/main/2026_JGR_figures_stream_metab.md
-    - raw code: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/tree/main/model_fit_checks/Final_model_eval
+- *Metabolism model evaluation*: raw code: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/tree/main/model_fit_checks/Final_model_eval
   
-- Figures for the manuscript: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/blob/main/2026_JGR_figures.Rmd
+- Figures for the manuscript: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/blob/main/2026_JGR_figures_stream_metab.md
+        -   Raw code: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/blob/main/2026_JGR_figures.Rmd
 
 # Data hosted by EDI 
 Loria, K., H. Lowman, J. Krause, I. Halterman, R. Miller, C. Berkenfield, and J.R. Blaszczak. 2026. Stream metabolism estimates and surface water chemistry in Glenbrook Creek (NV) and Blackwood Creek (CA) in the Lake Tahoe Basin, 2021-2024 ver 1. Environmental Data Initiative. 
