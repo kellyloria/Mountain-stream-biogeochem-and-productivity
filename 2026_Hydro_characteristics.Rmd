@@ -172,7 +172,7 @@ qft[i]<-streamflow[i]-bt[i]
 if (j<passes){
 btP<-bt
 bt[Ends[j+1]]<-if(streamflow[Ends[j+1]]<mean(btP))streamflow[Ends[j+1]]/1.2 else mean(btP)
-##Refines the approximation of end values after the first pass
+## Refines the approximation of end values after the first pass
 }
 }
 f <- data.frame(bt,qft)
@@ -580,285 +580,81 @@ grid
 
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Hydro_panel_long.png", plot = grid, width = 12, height = 3.25, units = "in")
+# ggsave("./Figs/Hydro_panel_long.png", plot = grid, width = 12, height = 3.25, units = "in")
 
 ```
 
 
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Hydro_panel_long.png", plot = ppt_accum_plots, width = 12, height = 1.5, units = "in")
 
-```
-
-### 20 years of SWE accumulation and water yield  
-
-The dashed lines represent the site 20-year average annual (WY) values for total SWE or water catchment normalized water yield 
-
-```{r, warning=F, echo=F,include=T, fig.width=8, fig.height=10}
-grid <- ggarrange(SWP_acc_plots,
-                  SWE_m_plots,
-                  ppt_accum_plots,
-                  WYeild_acc_plots, 
-                       ncol = 1, 
-                       nrow = 4, 
-                       common.legend = TRUE,
-                       legend = "bottom")
-
-grid
-
-## align = hv in cow plot high light the years that mountain so that the y axis starts in the same way 
-## scale_y_continours
-
-### to scale the water yeild - scale_y_continuous(trans = "log")
-```
-
-
-
-### Trimmed to study period water year 2021-2024
-
-The dashed lines represent the site 20-year average annual (WY) values for total SWE or water catchment normalized water yield 
-OLD
-
-```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
-
-SWP_acc_plotss <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = WaterYear, y = Total_SWE/1000, color = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=15) +
-  geom_line(position = position_dodge(width = 0.1))+
-  geom_hline(yintercept = 98089.47/1000, col = "#054fb9", lty = 2) + 
-  geom_hline(yintercept = 65774.26/1000, col = "#DD6E42", lty = 2) + 
-  theme_classic() +   ylab(expression(atop("Annual accumulated", SWE~(m~y^-1)))) +  # Centered multi-line label
-  xlab(NULL) + scale_color_manual(values = site_colors) +
-  theme(legend.position =  "none")
-
-
-WYeild_acc_plotss <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = WaterYear, y = Water_yield, color = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=17) +
-  geom_line(position = position_dodge(width = 0.1))+
-    geom_hline(yintercept = 1052085.5, col = "#054fb9", lty = 2) + 
-  geom_hline(yintercept = 149169.5, col = "#DD6E42", lty = 2) + 
-    scale_y_continuous(labels = scales::scientific) +  # Apply scientific notation
-  theme_classic() + ylab(expression(Annual~water~yield~(m^3~km^-1~y^-1))) +
-  xlab(NULL) + scale_color_manual(values = site_colors) +
-  theme(legend.position =  "none") 
-  
-```
-
-
-
-```{r, echo=FALSE, error=FALSE, warning=FALSE, include=F, message=FALSE}
-
-ppt_accum_plots <- ggplot(snowflow_dat_sum%>%filter(WaterYear>2020), aes(x = WaterYear, y = Total_ppt*0.001, color = site)) +
-  geom_point(size = 3, alpha = 0.95, position = position_dodge(width = 0.1), shape=15) +
-  geom_line(position = position_dodge(width = 0.1))+
-    geom_hline(yintercept = 1718.2429*0.001, col = "#054fb9", lty = 2) + 
-  geom_hline(yintercept = 843.7667*0.001, col = "#DD6E42", lty = 2) + 
-  theme_classic() +  ylab(expression(atop("Annual accumulated", PPT~(m~y^-1)))) +
-  xlab(NULL) + scale_color_manual(values = site_colors) +
-  theme(legend.position =  "none")
-  
-```
-
-### New grid with just ppt accumulated 
-
-```{r, warning=F, echo=F,include=T, fig.width=3, fig.height=6}
-grid <- ggarrange(ppt_accum_plots,
-                       WYeild_acc_plotss, 
-                       ncol = 1, 
-                       nrow = 2, 
-                       common.legend = TRUE,
-                       legend = "right")
-
-grid
-
-```
-
-
-Junk calcs 
-
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-(98090-65774)/98090 # SWE
-
-# SWE dry to wet
-# BW: 
-dry <- (75987.6 + 74451.4)/2
-wet <- (204310.6)
-
-(wet-dry)/wet
-
-# GB: 
-dry <- (38754.4 + 54028.4)/2
-wet <- (417722.64)
-
-(wet-dry)/wet
-
-###########################
-(1052086-149170)/1052086  # catchment normalized flow
-
-# catchment normalized flow dry to wet
-# BW: 
-dry <- (312213.38 + 894386.65)/2
-wet <- (1734968.40)
-
-(wet-dry)/wet
-
-# GB: 
-dry <- (48500.03 + 60472.19)/2
-wet <- (146516.9)
-
-(wet-dry)/wet
-
-```
-
-#### OLD EXTRA CODE : 
 
 ## A. Calculate delta SWE
 
 ```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=FALSE}
-# result <- target_snow_data %>%
-#   filter(date > as.Date("2020-09-29"))%>%
-#   arrange(site, date) %>%
-#   group_by(site) %>%
-#   mutate(
-#     daily_delta_SWE = snow_water_equivalent - lag(snow_water_equivalent, default = 0),
-#     snow_water_equivalent_cumulative = cumsum(daily_delta_SWE),
-#     precipitation_quality = ifelse(daily_delta_SWE > 0, "Accumulate", "Melt"), # not really rain
-#     rain = ifelse(daily_delta_SWE < 0, 1, 0)  # again just a really simple proxy
-#   ) %>%
-#   ungroup()
-```
-
-
-```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=FALSE}
-# result_yr <- result %>%
-#   group_by(site, WaterYear) %>%
-#   summarise(snow_water_equivalentc = sum(snow_water_equivalent, na.rm = T),
-#              precipitationc = sum(precipitation, na.rm = T),
-#              rainc = sum(rain, na.rm = T),
-#             temperature_mean = mean(temperature_mean, na.rm = T)
-#             )%>%
-#   filter(WaterYear>2020 & WaterYear<2024)
-# 
-# f_data<-water_year(flow_data)
-# seconds_in_day <-  c(24 * 60 * 60)
-# 
-# result2_yr <- f_data %>%
-#   group_by(site, WaterYear) %>%
-#   summarise(SumQ = sum(scale_Q *seconds_in_day, na.rm = T))%>%
-#   filter(WaterYear>2020 & WaterYear<2024)
-
-```
-
-Functions to identify max SWE per site for each water year and last day of snow pack persisitence. 
-
-```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=FALSE}
-# summarize_peak_SWE_date <- function(data) {
-#   data %>%
-#     filter(lubridate::month(date) >= 1 & lubridate::month(date) <= 6) %>%
-#     arrange(site, date) %>%
-#     group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
-#     summarize(
-#       peak_SWE_date = date[which.max(snow_water_equivalent)],
-#       peak_SWE_day_of_year = lubridate::yday(date[which.max(snow_water_equivalent)]),
-#       max_SWE = max(snow_water_equivalent)
-#     ) %>%
-#     ungroup()
-# }
-# 
-# summarize_transition_to_zero <- function(data) {
-#   data %>%
-#     filter(lubridate::month(date) >= 4 & lubridate::month(date) <= 7) %>%
-#     arrange(site, date) %>%
-#     group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
-#     summarize(
-#       transition_to_zero = date[which.max(
-#         (daily_delta_SWE == 0 & lead(daily_delta_SWE == 0, default = FALSE) & 
-#          lead(daily_delta_SWE == 0, n = 8, default = FALSE) & 
-#          lag(daily_delta_SWE, default = 0) == 0) & 
-#          (lead(daily_delta_SWE == 0, n = 8) & lag(daily_delta_SWE == 0, n = 5))
-#       )],
-#       .groups = 'drop',
-#       trans_day_of_year = lubridate::yday(transition_to_zero),
-#     ) %>%
-#     filter(!is.na(transition_to_zero))
-# }
-# 
-# summarize_peak_SPflow_date <- function(data) {
-#   data %>%
-#     filter(lubridate::month(date) >= 2 & lubridate::month(date) <= 8) %>%
-#     dplyr::group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
-#     dplyr::summarize(
-#       peak_SPFlow_date = date[which.max(scale_Q)],  # Date of the highest scale_Q
-#       peak_flow_day_of_year = lubridate::yday(date[which.max(scale_Q)]),  # DOY of the highest scale_Q
-#       max_SPFlow = max(scale_Q)  # Maximum scale_Q for the given year
-#     ) %>%
-#     ungroup()
-# }
-```
-
-
-
-
-```{r eval=TRUE, echo = TRUE, error=FALSE, warning=FALSE, message=FALSE, include=FALSE}
-# identify and scrape data from USGS gages for target sites (BW and GB)
-
-# Define the site numbers for "GB" and "BW"
-siteNo_GB <- "10336730"
-siteNo_BW <- "10336660"
-
-# Define the parameter codes for flow and stage
-pCode_flow <- "00060"
-
-
-
-# Set the start date to "1980-01-01" and end date to today (current date)
-start.date <- "1971-10-01"
-end.date <- "2024-10-01" #Sys.Date()  # Use the current date as the end date
-
-# Ensure that dplyr functions are correctly used
-flow_data_GB <- readNWISdata(siteNumbers = siteNo_GB, parameterCd = pCode_flow, startDate = start.date, endDate = end.date) %>%
-  mutate(site = "GBL", catch = "GB") %>%
-  dplyr::rename(date = dateTime, dischargeCFS = X_00060_00003) %>%
-  mutate(
-    dischargeCMS = dischargeCFS * 0.0283168,
-    scale_Q = ((dischargeCFS * 0.0283168) / 10.64485)) %>%
-    dplyr::select(date, dischargeCFS, site, catch, dischargeCMS, scale_Q)
-
-# View the processed data
-print(head(flow_data_GB))
-
-
-# Set the start date to "1980-01-01" and end date to today (current date)
-start.date <- "1960-10-01"
-end.date <- "2024-10-01" #Sys.Date()  # Use the current date as the end date
-
-flow_data_BW <- readNWISdata(siteNumbers = siteNo_BW, parameterCd = pCode_flow, startDate = start.date, endDate = end.date) %>%
-  mutate(site = "BWL", catch = "BW") %>%
-  rename(date = dateTime, dischargeCFS = X_00060_00003) %>%
-  mutate(
-    dischargeCMS = dischargeCFS * 0.0283168,
-    scale_Q = ((dischargeCFS * 0.0283168) / 29.00787)
-  ) %>%
-  dplyr::select(date, dischargeCFS, site, catch, dischargeCMS, scale_Q)
-
-
-# Combine data for both sites
-flow_data <- rbind(flow_data_GB, flow_data_BW)
-```
-
-### A. Flow Duration Analysis: Estimating flow exceedance probabilities
-
-```{r eval=TRUE, echo = TRUE, error=FALSE, warning=FALSE, message=FALSE, include=FALSE}
-# Processing for both sites using pipes
-result <- flow_data %>%
-  filter(date>as.Date("2020-09-30")) %>%
+result <- snowflow_dat %>%
+  filter(date > as.Date("2020-09-29"))%>%
+  arrange(site, date) %>%
   group_by(site) %>%
-  dplyr::summarize(
-    total_intervals = n(),
-    ranked_scale_discharge = list(sort(scale_Q, decreasing = TRUE)),
-    ranked_discharge = list(sort(dischargeCMS, decreasing = TRUE))
-  ) %>%
   mutate(
-    exceedence_prob = purrr::map(ranked_discharge, ~ seq(1, length(.), length.out = length(.)) / length(.) * 100)
+    daily_delta_SWE = snow_water_equivalent - lag(snow_water_equivalent, default = 0),
+    snow_water_equivalent_cumulative = cumsum(daily_delta_SWE),
+    precipitation_quality = ifelse(daily_delta_SWE > 0, "Accumulate", "Melt"), # not really rain
+    rain = ifelse(daily_delta_SWE < 0, 1, 0)  # again just a really simple proxy
   ) %>%
-  unnest(cols = c(ranked_scale_discharge, ranked_discharge, exceedence_prob))
+  ungroup()
 ```
+
+Functions to identify max SWE per site for each water year and last day of snow pack persistence. 
+
+```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+summarize_peak_SWE_date <- function(data) {
+  data %>%
+    filter(lubridate::month(date) >= 1 & lubridate::month(date) <= 6) %>%
+    arrange(site, date) %>%
+    group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
+    summarize(
+      peak_SWE_date = date[which.max(snow_water_equivalent)],
+      peak_SWE_day_of_year = lubridate::yday(date[which.max(snow_water_equivalent)]),
+      max_SWE = max(snow_water_equivalent)
+    ) %>%
+    ungroup()
+}
+
+summarize_transition_to_zero <- function(data) {
+  data %>%
+    filter(lubridate::month(date) >= 4 & lubridate::month(date) <= 7) %>%
+    arrange(site, date) %>%
+    group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
+    summarize(
+      transition_to_zero = date[which.max(
+        (daily_delta_SWE == 0 & lead(daily_delta_SWE == 0, default = FALSE) &
+         lead(daily_delta_SWE == 0, n = 8, default = FALSE) &
+         lag(daily_delta_SWE, default = 0) == 0) &
+         (lead(daily_delta_SWE == 0, n = 8) & lag(daily_delta_SWE == 0, n = 5))
+      )],
+      .groups = 'drop',
+      trans_day_of_year = lubridate::yday(transition_to_zero),
+    ) %>%
+    filter(!is.na(transition_to_zero))
+}
+
+summarize_peak_SPflow_date <- function(data) {
+  data %>%
+    filter(lubridate::month(date) >= 2 & lubridate::month(date) <= 8) %>%
+    dplyr::group_by(site, WaterYear = lubridate::year(date) + if_else(lubridate::month(date) < 10, 0, 1)) %>%
+    dplyr::summarize(
+      peak_SPFlow_date = date[which.max(scale_Q)],  # Date of the highest scale_Q
+      peak_flow_day_of_year = lubridate::yday(date[which.max(scale_Q)]),  # DOY of the highest scale_Q
+      max_SPFlow = max(scale_Q)  # Maximum scale_Q for the given year
+    ) %>%
+    ungroup()
+}
+```
+
+```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=T}
+
+result1 <- summarize_transition_to_zero(result)
+result1
+```
+
+
+End of script. 

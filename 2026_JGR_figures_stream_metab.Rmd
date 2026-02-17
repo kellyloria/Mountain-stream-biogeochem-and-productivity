@@ -63,35 +63,12 @@ siteC_colors <- c(
   "GBU" = "#DD6E42"
 )
 
-
-
 catch_colors <- c(
   "BW" = "#054fb9",
   "GB" = "#DD6E42"
 )
 
-# Define fill patterns for water years
-water_year_patterns <- c("wave","weave","stripe","circle", "stripe", "circle")
 
-
-# Create a sequence of dates
-date_seq <- seq(from = as.Date("2021-03-20"), to = as.Date("2024-10-10"), by = "day")
-
-# Convert the sequence to a dataframe
-date_df <- data.frame(date = date_seq)
-date_df$site <- "BWL"
-date_df$catch <- "BW"
-date_df1 <- data.frame(date = date_seq)
-date_df1$site <- "GBL"
-date_df1$catch <- "GB"
-date_df2 <- data.frame(date = date_seq)
-date_df2$site <- "GBU"
-date_df2$catch <- "GB"
-date_df3 <- data.frame(date = date_seq)
-date_df3$site <- "BWU"
-date_df3$catch <- "BW"
-
-date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
 
 ### fxns:
 ## Fxn for water year:
@@ -122,340 +99,18 @@ comparisons <- list(
 )
 ```
 
-```{r, warning=F, size = 'small', echo=FALSE, include=F}
-date_datf <- water_year(date_datf)
 
+```{r, warning=F, size = 'small', echo=F, include=F}
 
+covariat_datq <- readRDS("./complied_data_JGR_MS_metab_26.RDS")
+```
 
-covariat_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_covariate_dat_AFDM.rds") %>%
-  dplyr::select("date", "Site","bulk.density","AFDM_mgg","AFDM_mgcm2", "Chla_ugL_Q", "Pheo_ugL_Q")
-summary(covariat_dat)
+```{r, warning=F, size = 'small', echo=F, include=F}
 
-covariat_dat <- date_datf %>%
-  left_join(covariat_dat, by=c("date", "site"="Site"))
-
-flow_df <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_flow_df.rds")
-
-covariat_dat <- covariat_dat %>%
-    left_join(flow_df, by=c("date", "site"))
-
-
-bg_nuts <- 
-  readRDS("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/NS_chem_dat_nh4_24.rds") %>%
-  filter(location=="stream") %>%
-  mutate(NO3_mgL_dl = if_else(NO3_mgL_dl < 0.0015, 0.0015, NO3_mgL_dl))%>%
-    mutate(NH4_mgL_dl=if_else(NH4_mgL_dl < 0.001, 0.001, NH4_mgL_dl))%>%
-    mutate(PO4_ugL_dl=if_else(PO4_ugL_dl < 0.201, 0.201, PO4_ugL_dl)) %>%
-  mutate(PO4_ugL_dl=if_else(DOC_mgL_dl < 0.25, 0.125, DOC_mgL_dl)) %>%
-  group_by(site, shore, date, depth, location, substrate) %>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
-
-
-##### pivot wider 
-bg_nuts_wide <- bg_nuts %>%
-  dplyr::select(site, date, substrate, NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill) %>%
-  group_by(site, date,substrate) %>% 
-  summarise(across(c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), mean, na.rm = TRUE), .groups = "drop") %>% 
-  pivot_wider(names_from = substrate, values_from = c(NO3_mgL_dl, NH4_mgL_dl, PO4_ugL_dl, DOC_mgL_dl, pH_infill), names_sep = "_")
-
-######
-
-
-WQ_dat <- read.csv("/Users/kellyloria/Documents/LittoralMetabModeling/RawData/WaterChem/Stream_Lake_YSI_WaterQuality.csv")%>%
-  mutate(date = as.Date(date, format="%m/%d/%y")) %>%
-  dplyr::select("site", "date","pH") %>%
-  dplyr:: group_by(site, date) %>%
-  dplyr::summarise(pH=mean(pH, na.rm=T))
-
-covariat_datq <- covariat_dat%>%
-  left_join(bg_nuts_wide[ , c("site", "date", "NO3_mgL_dl_sw", "NO3_mgL_dl_pw", "NH4_mgL_dl_sw", 
-                              "NH4_mgL_dl_pw", "PO4_ugL_dl_sw","PO4_ugL_dl_pw", "DOC_mgL_dl_sw",
-                              "DOC_mgL_dl_pw", "pH_infill_sw",  "pH_infill_pw")], by=c("date", "site"))
-
-covariat_datq <- covariat_datq%>%
-  left_join(WQ_dat,  by=c("date", "site"))
-
-
-## bring in SPC data 
-### missing 2024 BW SPC
-SPC_BWL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWL_SPCv2.rds") %>%
-  filter(datetime>as.POSIXct("2021-04-29 24:00:00"))
-SPC_BWL$site <- "BWL"
-SPC_BWU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_BWU_SPCv2.rds")
-SPC_BWU$site <- "BWU"
-SPC_GBL <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBL_SPCv2.rds")
-SPC_GBL$site <- "GBL"
-SPC_GBU <- readRDS("/Users/kellyloria/Documents/UNR/MSMmetab/23_CleanDat/24_GBU_SPCv2.rds")
-SPC_GBU$site <- "GBU"
-
-SPC_dat <- rbind(SPC_BWL, SPC_BWU, SPC_GBL, SPC_GBU)
-SPC_dat <- SPC_dat %>%
-  mutate(date =as.Date(datetime)) 
-
-SPC_dat_day <- SPC_dat %>%
-  dplyr::group_by(site, date) %>%
-  dplyr::summarise(
-    wt= mean(wtr, na.rm=T),
-    wt_sd= sd(wtr, na.rm=T),
-    SPC_m=mean(SPC, na.rm=T),
-    SPC_sd=sd(SPC, na.rm=T))
-
-SPC_datD <- SPC_dat_day %>%
-  filter(wt_sd<4.1 & SPC_sd <35)
-
-  
-covariat_datq <- covariat_datq%>%
-  left_join(SPC_datD, by=c("date", "site"))
-
-### 
-## Bring in morph data : 
-morph_df <- read.csv("/Users/kellyloria/Documents/UNR/MSMmetab/stream_morphology_core.csv")%>%
-  filter(quality =="trust") %>%
-    mutate(datetime = as.POSIXct(datetime, format="%Y-%m-%dT%H:%M:%SZ"),
-           date=as.Date(datetime)) %>%
-  rename(site="Site")
-
-
-Morph_dat_day <- morph_df%>%
-  dplyr::group_by(site, date) %>%
-  dplyr::summarise(
-    v_m=mean(v_estimation, na.rm=T),
-    w_m=mean(w, na.rm=T),
-    depth_measure=mean(z, na.rm=T))
-
-
-covariat_datq <- covariat_datq%>%
-  left_join(Morph_dat_day, by=c("date", "site"))
-
-#### DO ###
-## BWL  
-BWL_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_BWL_mod_dat.rds") %>%
-  mutate(site="BWL")
-summary(BWL_dat) 
-
-## BWU 
-BWU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/BWU_k600/25_BWU_mod_dat.rds") %>%
-  mutate(site="BWU")
-summary(BWU_dat)
-
-## GBL 
-GBL_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBL_mod_dat.rds") %>%
-  mutate(site="GBL")
-summary(GBL_dat)
-
-## GBU 
-GBU_dat <- readRDS("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/input_data/25_GBU_mod_dat.rds") %>%
-  mutate(site="GBU")
-summary(GBU_dat)
-
-
-miniDOT_dat <- rbind(BWL_dat, BWU_dat, GBL_dat, GBU_dat)
-miniDOT_dat_day <- miniDOT_dat%>%
-  mutate(date =as.Date(solar.time))%>%
-  dplyr::group_by(site, date) %>%
-  dplyr::summarise(
-    do.obs_m=mean(DO.obs, na.rm=T),
-    do.obs_sd=sd(DO.obs, na.rm=T),
-    wtr_m=mean(temp.water, na.rm=T),
-    wtr_sd=sd(temp.water, na.rm=T))
-
-covariat_datq <- covariat_datq%>%
-  left_join(miniDOT_dat_day, by=c("date", "site"))
-
-### N-uptake metrics
-n_up <- read.csv("/Users/kellyloria/Documents/UNR/Ncycle/BTC_N_Table_2025_figure.csv")%>%
-  mutate(date = as.Date(date, format="%m/%d/%y")) 
-
-covariat_datq <- covariat_datq%>%
-  left_join(n_up, by=c("date", "site"))
-
-##================================
-## Load metabolism model data
-##================================
-BWL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWL_Full_2025-02-06_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
-  mutate(
-    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
-  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
-  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
-                GPP_2.5pct, GPP_97.5pct, 
-                ER_2.5pct, ER_97.5pct,
-                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
-                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>% 
-  mutate(site="BWL",
-         catch="BW")
-
-summary(BWL_met_binned)
-
-GBL_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBL_Full_2025-02-02_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
-  mutate(
-    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
-  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
-  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
-                GPP_2.5pct, GPP_97.5pct, 
-                ER_2.5pct, ER_97.5pct,
-                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
-                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
-  mutate(site="GBL",
-         catch="GB")
-
-
-BWU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/BWU_Full_2025-02-04_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
-  mutate(
-    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
-  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
-  dplyr::select(date, GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
-                GPP_2.5pct, GPP_97.5pct, 
-                ER_2.5pct, ER_97.5pct,
-                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
-                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
-  mutate(site="BWU",
-         catch="BW")
-
-GBU_met_binned <- read_csv("/Users/kellyloria/Documents/Publications/2024_stream_metab_output/final_output_2025/GBU_Full_2025-02-03_daily.csv") %>%
-  filter(GPP_daily_Rhat<1.05)%>%
-  filter(GPP_97.5pct>0)%>%
-  filter(ER_daily_Rhat<1.05) %>%
-  filter(ER_2.5pct<0)%>%
-  filter(K600_daily_Rhat<1.05) %>%
-  mutate(
-    GPP_mean = ifelse(GPP_mean < 0, 0.001, GPP_mean)) %>%
-  filter(ER_mean < 0.01) %>%
-  mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean) %>%
-  dplyr::select(date,GPP_mean, ER_mean, NEP_daily_mean, K600_daily_mean,
-                GPP_2.5pct, GPP_97.5pct, 
-                ER_2.5pct, ER_97.5pct,
-                K600_daily_2.5pct, K600_daily_predlog_97.5pct,
-                GPP_daily_Rhat, ER_daily_Rhat, K600_daily_Rhat) %>%
-  mutate(site="GBU",
-         catch="GB")
-
-metab_dat <- rbind(BWL_met_binned, BWU_met_binned, GBL_met_binned, GBU_met_binned)
-
-covariat_datq <- covariat_datq%>%
-  left_join(metab_dat, by=c("date", "site", "catch"))
-
-
-### read in streamlight data
-## BWL  
-BWL_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_BWL.rds")
-summary(BWL_SL_dat) 
-
-## BWU 
-BWU_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_BWU.rds") 
-summary(BWU_SL_dat)
-
-## GBL 
-GBL_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_GBL.rds") 
-summary(GBL_SL_dat)
-
-## GBU 
-GBU_SL_dat <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/data/CH1_StreamLightMod_GBU.rds") 
-summary(GBU_SL_dat)
-
-light_mod_df <- rbind(BWL_SL_dat, BWU_SL_dat, GBL_SL_dat, GBU_SL_dat)
-
-light_mod_df_day <- light_mod_df%>%
-  mutate(date=as.Date(local_time)) %>%
-  group_by(site, date)%>%
-  summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop") %>%
-  dplyr::select(site, date, LAI, PAR_inc, PAR_bc, veg_shade, bank_shade, PAR_surface)
-
-
-covariat_datq <- covariat_datq%>%
-  left_join(light_mod_df_day, by=c("date", "site"))
-
+nitrogen_data <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/analysis/Mtn-stream-biogeochem-productivity/EGRET_infill_WC.RDS")
 
 ```
 
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-# temp summary save file 
-
-
-light_mod_df_day1 <- water_year(light_mod_df_day)
-
-light_data_HA1 <- light_mod_df_day1%>%
-  mutate(yday=yday(date)) %>%
-  filter(yday<253) %>% # 253
-  mutate(catch = case_when(
-    site== "BWL"~ "BW",
-    site== "BWU"~ "BW",
-    site== "GBL"~ "GB",
-    site== "GBU"~ "GB",
-    TRUE ~ NA_character_  )) %>%
-  # mutate(cum_PAR_surface = cumsum(PAR_surface)) %>%
-  dplyr::group_by(site) %>%
-  summarise(mean_LAI = round(mean(LAI, na.rm=T),2),
-            mean_veg_shade = round(mean(veg_shade, na.rm = T),2),
-            mean_PAR_surface = round(mean(PAR_surface, na.rm = T),2),
-            min_PAR_surface = min(PAR_surface, na.rm = T),
-            max_PAR_surface = max(PAR_surface, na.rm = T),
-            )
-
-
-light_data_HA1
-
-
-```
-
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-
-covariat_datq$AFDM_ugcm2 <- (covariat_datq$AFDM_mgcm2 *1000)
-#hist(covariat_datq$AFDM_ugcm2 )
-
-covariat_datq$Biom_Chla <- (covariat_datq$AFDM_ugcm2)/(covariat_datq$Chla_ugL_Q)
-#hist(covariat_datq$Biom_Chla)
-
-summary(covariat_datq)
-
-```
-
-Pause to make a column for biomass to chla ratios And also make biomass
-in in micro grams to more comparable to chl-a
-
-```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
-
-covariat_datq$AFDM_ugcm2 <- (covariat_datq$AFDM_mgcm2 *1000)
-#hist(covariat_datq$AFDM_ugcm2 )
-
-covariat_datq$Biom_Chla <- (covariat_datq$AFDM_ugcm2)/(covariat_datq$Chla_ugL_Q)
-#hist(covariat_datq$Biom_Chla)
-```
-
-Additive columns for combined surface and pore water nutrient as tot\_
-in ugL
-
-```{r, warning=F, size = 'small', echo=T, include=F, fig.width=6, fig.height=4}
-
-covariat_datq$tot_NO3_ugL <- c(covariat_datq$NO3_mgL_dl_pw + covariat_datq$NO3_mgL_dl_sw) *1000
-
-covariat_datq$tot_NH4_ugL <- c(covariat_datq$NH4_mgL_dl_pw + covariat_datq$NH4_mgL_dl_sw) *1000
-
-covariat_datq$tot_PO4_ugL <- c(covariat_datq$PO4_ugL_dl_pw + covariat_datq$PO4_ugL_dl_pw)
-
-covariat_datq$tot_DOC_ugL <- c(covariat_datq$DOC_mgL_dl_pw + covariat_datq$DOC_mgL_dl_sw) *1000
-
-
-summary(covariat_datq)
-
-```
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=10, fig.height=12}
 # Separate out BW 
@@ -576,7 +231,9 @@ GBU_KD_plot <- GBU_KD_plot +
   guides(color = guide_legend(title = "Water year", nrow = 2))
 ```
 
-### Modified figure 2
+###  *Figure 2*
+
+GPP and ER regimes at each reach. 
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=7}
 # Arrange plots with shared legend at the bottom
@@ -595,14 +252,14 @@ KD_coeff_grid
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig3_KD_CH1_grid_rev.png", plot = KD_coeff_grid, width = 6.25, height = 6.25, units = "in")
+# ggsave("./Fig3_KD_CH1_grid_rev.png", plot = KD_coeff_grid, width = 6.25, height = 6.25, units = "in")
 
 ```
 
 
 
+### *Figure 3*
 
-### **Figure 2**
 Setting: Showing the delayed onset of baseflow in wetter years.
 Color as water year. 
 
@@ -613,8 +270,6 @@ DOY - Sept 1 = 244
 DOY - Oct 1 = 274
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
-
-names(covariat_datq)
 
 covariat_datq<-covariat_datq%>%
   mutate(yday=yday(date))
@@ -688,14 +343,14 @@ Baseflowplots <- covariat_datq %>%
               dplyr::select(site, water_year, max_pf, max_pf_yday), by = c("site", "water_year", "yday"= "max_pf_yday"))  %>%filter(site=="BWL" | site=="GBL")
 
 
-Baseflowplot1 <- Baseflowplots%>%
+Baseflowplot_df <- Baseflowplots%>%
   mutate(
     ave_q = case_when(
       site == "GBL" & water_year == 2021 ~ ave_q - 0.006,  # Adjust ave_q for GBL in 2021
       TRUE ~ ave_q))
 
 
-Baseflowplot <- ggplot(Baseflowplot1 %>% 
+Baseflowplot <- ggplot(Baseflowplot_df %>% 
                          filter(water_year < 2025), 
                        aes(x = yday, y = Q_m, color = as.factor(water_year))) +
   geom_line() +  
@@ -707,7 +362,7 @@ Baseflowplot <- ggplot(Baseflowplot1 %>%
   xlab("Day of year") +
 
   # Vertical lines at ave_q day
-  geom_vline(data = Baseflowplot1 %>% filter(water_year < 2025),
+  geom_vline(data = Baseflowplot_df %>% filter(water_year < 2025),
              aes(xintercept = yday[ave_q == ave_q], color = as.factor(water_year)),
              linetype = "dashed", size = 0.5, alpha = 0.9) +
 
@@ -715,8 +370,8 @@ Baseflowplot <- ggplot(Baseflowplot1 %>%
   geom_point(aes(x = yday, y = ave_q, color = as.factor(water_year)), 
              shape = 19, size = 1.5, alpha = 0.9)
 
-BF_sum <- Baseflowplot1%>%
-  filter(!is.na(Baseflowplot1$ave_q))
+BF_sum <- Baseflowplot_df%>%
+  filter(!is.na(Baseflowplot_df$ave_q))
 
 BF_sum
 
@@ -755,12 +410,27 @@ summary(target_snow_df)
 
 ```
 
+```{r, warning=F, size = 'small', echo=F}
 
-```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=4.25}
+Baseflowplot_df$date <- as.Date(Baseflowplot_df$date)
+target_snow_df$date  <- as.Date(target_snow_df$date)
+
+Baseflowplot_df <- Baseflowplot_df %>%
+  left_join(
+    target_snow_df %>% dplyr::select(site, date, SWE),
+    by = c("site", "date")
+  )
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=9, fig.height=4.25}
 
 library(dplyr)
 library(ggplot2)
 
+df_BWL<- Baseflowplot_df %>%
+  filter(site=="BWL")
+  
 draw_order <- c(2023, 2024, 2022, 2021)
 
 Baseflowplot_BWL <- local({
@@ -768,7 +438,7 @@ Baseflowplot_BWL <- local({
   df_BWL <- Baseflowplot_df %>%
     filter(water_year < 2025, site == "BWL") %>%
     mutate(
-      label = "Large creek (BW)",
+      label = "Large creek",
       year_level = factor(water_year, levels = draw_order)
     ) %>%
     arrange(factor(water_year, levels = draw_order))
@@ -844,11 +514,14 @@ Baseflowplot_BWL
 ```
 
 
-```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=4.25}
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=9, fig.height=4.25}
 
 
 library(dplyr)
 library(ggplot2)
+
+df_GBL<- Baseflowplot_df %>%
+  filter(site=="GBL")
 
 draw_order <- c(2023, 2024, 2022, 2021)
 
@@ -857,7 +530,7 @@ Baseflowplot_GBL <- local({
   df_GBL <- Baseflowplot_df %>%
     filter(water_year < 2025, site == "GBL") %>%
     mutate(
-      label = "Small creek (GB)",
+      label = "Small creek",
       year_level = factor(water_year, levels = draw_order)
     ) %>%
     arrange(factor(water_year, levels = draw_order))
@@ -953,14 +626,10 @@ baseflow_grid
 
 
 
-
-
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
 # ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig2_baseflow_combined.png", plot = baseflow_grid, width =5.5, height = 6.5, units = "in")
 
 ```
-
-
 
 #### Calculate nitrogen demand:
 
@@ -1010,7 +679,6 @@ morph_counts
 ##### better way to infill width and velocites to get at reach length:
 # na.approx, and using Q as "Variables to be used for interpolation as in"
 
-
 covariat_datqI <- covariat_datq %>%
   group_by(site) %>%
   arrange(date) %>%
@@ -1031,6 +699,48 @@ covariat_datqI <- covariat_datqI %>%
     v_m_apr = ifelse(is.na(v_m_apr),
                   rollapplyr(v_m_apr, width = 15, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE),
                   v_m_apr))
+```
+
+
+
+#### Calculate nitrogen supply:
+
+```{r, warning=F, size = 'small', echo=T, include=T,fig.width=6, fig.height=4}
+covariat_nsupply <- covariat_datqI %>%
+  left_join(nitrogen_data, by=c("date", "site")) %>%
+  mutate(
+    K600_daily_mean = case_when(
+      is.na(K600_daily_mean) & site == "BWL" ~ 22, 
+      is.na(K600_daily_mean) & site == "BWU" ~ 16,
+      is.na(K600_daily_mean) & site == "GBU" ~ 32,
+      is.na(K600_daily_mean) & site == "GBL" ~ 25,
+      TRUE ~ K600_daily_mean)) %>%
+  mutate(Q_Ls = Q_m * 1000, # flow from csm to Ls
+  # calculate reach length in m
+  reachL = c((v_m_apr*w_m_apr*8640)/K600_daily_mean), # seconds to days
+   # Calculate no3 supply 
+  NO3_supply = c(((86400*Q_Ls*(NO3_mgL_dl_sw/1000))/(w_m_apr*reachL))),
+  NO3_supply_new = c(((86400*Q_Ls*(NO3_mgL_i/1000))/(w_m_apr*reachL))),
+
+   # Calculate nh3 supply 
+  NH4_supply = c(((86400*Q_Ls*(NH4_mgL_dl_sw/1000))/(w_m_apr*reachL))), ## unit should be g N m-2 d-1
+ NH4_supply_new = c(((86400*Q_Ls*(NH4_mgL_i/1000))/(w_m_apr*reachL))),
+  PO4_supply = c(((86400*Q_Ls*(PO4_ugL_dl_sw/1e-6))/(w_m_apr*reachL))) ## unit should be g N m-2 d-1
+   )  %>%
+  dplyr::select(site, date, reachL, Q_Ls, NO3_supply, 
+                NO3_supply_new, NH4_supply, PO4_supply, NH4_supply_new, NO3_mgL_i, NH4_mgL_i, PO4_ugL_dl_sw)
+
+```
+
+
+
+```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
+ndyn <- covariat_datq %>%
+  left_join(covariat_nsupply, by=c("site", "date"))%>%
+  left_join(covariat_ndemand, by=c ("site", "date")) 
+
+summary(ndyn)
+
 ```
 
 ```{r, warning=F, size = 'small', echo=F,include=F, fig.width=9, fig.height=10}
@@ -1066,45 +776,7 @@ n_s_grid
 
 # Where the black points are the survey measures of width or velocity.
 
-
 ```
-
-
-
-
-
-#### Calculate nitrogen supply:
-
-```{r, warning=F, size = 'small', echo=T, include=T,fig.width=6, fig.height=4}
-covariat_nsupply <- covariat_datqI %>%
-  left_join(nitrogen_data, by=c("date", "site")) %>%
-  dplyr::select(site, catch, date, water_year, reach_length,
-                v_m_apr,w_m_apr, Q_m, K600_daily_mean,
-                NO3_mgL_dl_sw, NH4_mgL_dl_sw, PO4_ugL_dl_sw, NO3_mgL_i, NH4_mgL_i) %>%
-  mutate(
-    K600_daily_mean = case_when(
-      is.na(K600_daily_mean) & site == "BWL" ~ 22, 
-      is.na(K600_daily_mean) & site == "BWU" ~ 16,
-      is.na(K600_daily_mean) & site == "GBU" ~ 32,
-      is.na(K600_daily_mean) & site == "GBL" ~ 25,
-      TRUE ~ K600_daily_mean)) %>%
-  mutate(Q_Ls = Q_m * 1000, # flow from csm to Ls
-  # calculate reach length in m
-  reachL = c((v_m_apr*w_m_apr*8640)/K600_daily_mean), # seconds to days
-   # Calculate no3 supply 
-  NO3_supply = c(((86400*Q_Ls*(NO3_mgL_dl_sw/1000))/(w_m_apr*reachL))),
-  NO3_supply_new = c(((86400*Q_Ls*(NO3_mgL_i/1000))/(w_m_apr*reachL))),
-
-   # Calculate nh3 supply 
-  NH4_supply = c(((86400*Q_Ls*(NH4_mgL_dl_sw/1000))/(w_m_apr*reachL))), ## unit should be g N m-2 d-1
- NH4_supply_new = c(((86400*Q_Ls*(NH4_mgL_i/1000))/(w_m_apr*reachL))),
-  PO4_supply = c(((86400*Q_Ls*(PO4_ugL_dl_sw/1e-6))/(w_m_apr*reachL))) ## unit should be g N m-2 d-1
-   )  %>%
-  dplyr::select(site, date, reachL, reach_length, Q_Ls, NO3_supply, 
-                NO3_supply_new, NH4_supply, PO4_supply, NH4_supply_new, NO3_mgL_i, NH4_mgL_i, PO4_ugL_dl_sw)
-
-```
-
 
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
@@ -1117,15 +789,7 @@ summary(ndyn)
 ```
 
 
-### **Figure 2**
-Setting: Showing the delayed onset of baseflow in wetter years.
-Color as water year. 
 
-DOY - April 1 = 91
-DOY - May 1 = 121
-DOY -June 1 = 152
-DOY - Sept 1 = 244
-DOY - Oct 1 = 274
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
 
@@ -1188,10 +852,6 @@ steepest_slopes <- overall_bf_df %>%
     max_q_yday = yday[which.max(Q_m)],
     min_q_yday = yday[which.min(Q_m)],
     mean_q_yday = yday[which.min(abs(Q_m - mean_q))]
-   # max_slope = max(slope, na.rm = TRUE),
-  #  max_slope_yday = yday[which(slope == max(slope, na.rm = TRUE))[1]],
-  #  min_slope = min(slope, na.rm = TRUE),
-  #  min_slope_yday = yday[which(slope == min(slope, na.rm = TRUE))[1]]
   ) %>%
   ungroup() 
 
@@ -1201,11 +861,6 @@ steepest_slopes <- overall_bf_df %>%
 
 
 ##### Plots of Ratios of NH4+- N supply to demand, ratios NO3-- N supply to demand
-
-Remaid figure 4: Now with chemistry data aligned to data data frame so
-that there are no sample NAs for NO3 and Nh4 when the metabolism model
-failed to estimate that parameter on the same day as the chemistry
-sample.
 
 Color is now also by water year 2021-2024, and shape is reach location.
 
@@ -1231,7 +886,7 @@ covariat_NS_ND <- ndyn %>%
     summarise(across(everything(), mean, na.rm = TRUE), .groups = "drop")
 
 covariat_NS_ND1 <- covariat_NS_ND%>%
-  left_join(Baseflowplot1, by=c("site", "date", "catch",
+  left_join(Baseflowplot_df, by=c("site", "date", "catch",
                                 "water_year", "Q_m"))
   
 
@@ -1296,46 +951,13 @@ N_demand_plot1
 
 ```
 
-### **Figure 5**
-
-
-```{r, warning=F, size = 'small', echo=F,include=F, fig.width=12, fig.height=6}
-
-n_s_grid <- ggarrange(
-  NO3_supp_plots,
-  N_demand_plot1,
-  labels = c("b", "c"),
-    align = c("v"),
-  ncol = 1, nrow = 2,
-  label.x = 0.91,  # Move label to the right
-  label.y = 1,     # Keep label at the top
-  hjust = 1,       # Right-align the label
-  vjust = 1        # Top-align the label
-)
-
-
-
-n_s_grid
-
-
-```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=9, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Nsupply_grid_CH1_SFS_ppt_21.png", plot = n_s_grid, width = 8.5, height = 7.75, units = "in")
+# ggsave("./Nsupply_grid_CH1_SFS_ppt_21.png", plot = n_s_grid, width = 8.5, height = 7.75, units = "in")
 
 ```
 
 
-
-
-##### Plots of Ratios of NH4+- N supply to demand, ratios NO3-- N supply to demand
-
-Remaid figure 4: Now with chemistry data aligned to data data frame so
-that there are no sample NAs for NO3 and Nh4 when the metabolism model
-failed to estimate that parameter on the same day as the chemistry
-sample.
-
-Color is now also by water year 2021-2024, and shape is reach location.
 
 ```{r, warning=F, size = 'small', echo=F, include=F}
 covariat_NS_ND <- ndyn %>%
@@ -1368,10 +990,6 @@ N_ratio_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(x = (NO3_s
     scale_x_continuous(trans = "log", breaks = scales::log_breaks(base = 10)) + 
   scale_y_continuous(trans = "log", breaks = scales::log_breaks(base = 10),
                        labels = scales::label_number()) +
-#    scale_x_continuous(trans = "log", breaks = c(0.001, 0.003, 0.1, 0.3, 1, 1.6)) +
- #     scale_y_continuous(trans = "log",  breaks = c(0.0001, 0.001, 0.003, 0.05, 0.1, 0.3)) +
- # xlim(0,1) +
- # ylim(0, 1) +
    ylab(expression(log(Nitrogen~demand)~(g~N~m^-2~d^-1))) +
      xlab(expression(log(Nitrogen~supply)~(g~N~m^-2~d^-1))) +
   theme_classic() 
@@ -1397,7 +1015,7 @@ NO3_supp_plots <- ggplot(covariat_NS_ND%>%filter(water_year<2025), aes(y = (NO3_
   scale_shape_manual(values = c(15,0,17,2)) +
     theme(legend.position = "none") +
   facet_grid(catch~.)
-# Remove legend
+
 
 # Define threshold for high NO3 demand (above 3rd quartile)
 high_Ndemand_threshold <- 0.075
@@ -1426,7 +1044,7 @@ N_demand_plot1
 
 ```
 
-### **Figure 5**
+### *Figure 4*
 
 
 ```{r, warning=F, size = 'small', echo=F,include=T, fig.width=12, fig.height=6}
@@ -1437,13 +1055,11 @@ n_s_grid <- ggarrange(
   labels = c("b", "c"),
     align = c("v"),
   ncol = 1, nrow = 2,
-  label.x = 0.91,  # Move label to the right
-  label.y = 1,     # Keep label at the top
-  hjust = 1,       # Right-align the label
-  vjust = 1        # Top-align the label
+  label.x = 0.91,  
+  label.y = 1,     
+  hjust = 1,      
+  vjust = 1       
 )
-
-
 
 N_ratio_plots <- N_ratio_plots + 
   theme(
@@ -1452,8 +1068,8 @@ N_ratio_plots <- N_ratio_plots +
     legend.position = "bottom"
   ) +
   guides(
-    shape = guide_legend(nrow = 2),  # Shape legend on first line
-    color = guide_legend(nrow = 2)   # Color legend on second line
+    shape = guide_legend(nrow = 2), 
+    color = guide_legend(nrow = 2)   
   )
 
 Ndyn_grid <- ggarrange(
@@ -1474,14 +1090,17 @@ Ndyn_grid
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=9, fig.height=4}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig4_n_dyn.png", plot = Ndyn_grid, width = 10.75, height = 6.75, units = "in")
+# ggsave("./Fig4_n_dyn.png", plot = Ndyn_grid, width = 10.75, height = 6.75, units = "in")
 
 ```
 
 
-### Perform ANOVA for year differences in at each reach
+## Dry to wet year comparisons 
+###  ANOVA's for differences in at each reach
 
-##### GPP: 
+
+##### GPP:
+
 ```{r, warning=F, size = 'small', echo=T, include=T}
 # Define the water years you want on the x-axis, including 2021
 desired_years <- c("2021", "2022", "2023")
@@ -1513,14 +1132,10 @@ posthoc_n03
 ```
 
 
-### Annual N supply
-
-### NO3 supply 
+##### NO3 supply 
 
 
-###
-
-```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
+```{r, warning=F, size = 'small', echo=F, fig.width=5, include=T,fig.height=4}
 
 desired_years <- c("2021","2022","2023")
 
@@ -1565,24 +1180,31 @@ library(multcompView)
 
 desired_years <- c("2021","2022","2023")
 
-make_site_plot_yearonly <- function(site_id, y_max = 2.0, label_pad = 0.05) {
+
+
+make_site_plot_yearonly <- function(site_id, y_max = 2.0, label_pad = 0.05, alpha_letters = 0.10) {
 
   df <- covariat_NS_ND %>%
     filter(site == site_id, water_year %in% 2021:2023) %>%
-    mutate(water_year = factor(as.character(water_year), levels = desired_years))
+    mutate(water_year = factor(as.character(water_year), levels = desired_years)) %>%
+    filter(is.finite(NO3_supply_new))  # drops NA/NaN/Inf
 
-  # ANOVA (year only)
+  # guard: if no data, return an empty plot instead of erroring
+  if (nrow(df) == 0) {
+    p <- ggplot() + theme_classic() + labs(title = paste("No data for", site_id))
+    return(list(plot = p, anova = NULL, tukey = NULL))
+  }
+
   fit <- aov(NO3_supply_new ~ water_year, data = df)
   tuk <- TukeyHSD(fit)
-  letters <- multcompLetters4(fit, tuk)
 
-  letters_df <- data.frame(
-    water_year = names(letters[[1]]$Letters),
-    letters    = letters[[1]]$Letters
+  letters_df <- make_letters_from_tukey(
+    tukey = tuk,
+    term  = "water_year",
+    alpha = alpha_letters
   ) %>%
     mutate(water_year = factor(water_year, levels = desired_years))
 
-  # dynamic y position for letters (per site)
   y_lab <- min(y_max, max(df$NO3_supply_new, na.rm = TRUE) + label_pad)
 
   p <- ggplot(df, aes(x = water_year, y = NO3_supply_new)) +
@@ -1624,27 +1246,7 @@ make_letters_from_tukey <- function(tukey, term, alpha = 0.10) {
   )
 }
 
-# build letters using alpha = 0.10
-letters_df <- make_letters_from_tukey(
-  tukey = res_GBU$tukey,
-  term  = "water_year",
-  alpha = 0.10
-) %>%
-  mutate(water_year = factor(water_year, levels = desired_years))
 
-
-
-res_BWL <- make_site_plot_yearonly("BWL")
-plot_Nsupply_BWL <- res_BWL$plot
-
-res_BWU <- make_site_plot_yearonly("BWU")
-plot_Nsupply_BWU <- res_BWU$plot
-
-res_GBL <- make_site_plot_yearonly("GBL")
-plot_Nsupply_GBL <- res_GBL$plot
-
-res_GBU <- make_site_plot_yearonly("GBU")
-plot_Nsupply_GBU <- res_GBU$plot
 
 
 # Build all site results (letters computed consistently at alpha=0.10)
@@ -1662,7 +1264,10 @@ plot_Nsupply_GBU <- res_GBU$plot
 
 ```
 
-```{r, warning=F, size = 'small', echo=T, fig.width=5, include=FALSE,fig.height=4}
+##### NH4 supply 
+
+
+```{r, warning=F, size = 'small', echo=T, fig.width=5, include=T,fig.height=4}
 
 desired_years <- c("2021","2022","2023")
 
@@ -1698,7 +1303,6 @@ nh4_mean_diff_wet_dry <- covariat_NS_ND %>%
 nh4_mean_diff_wet_dry
 ```
 
-#### NH4 supply 
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
 
@@ -1781,9 +1385,9 @@ plot_NH4supply_GBU <- res_GBU$plot
 
 
 
-### N demand
+#### N demand
 
-```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
+```{r, warning=F, size = 'small', echo=F, fig.width=5, include=T,fig.height=4}
 
 desired_years <- c("2021","2022","2023")
 
@@ -1900,8 +1504,9 @@ plot_Ndemand_GBU <- res_GBU$plot
 
 ```
 
+### *Figure 5*
 
-```{r, warning=F, size = 'small', echo=F, fig.width=8, include=FALSE,fig.height=6}
+```{r, warning=F, size = 'small', echo=F, fig.width=8, include=T,fig.height=6}
 
 Ndyn_annual_grid <- ggarrange(
   plot_Nsupply_BWL,
@@ -1929,11 +1534,12 @@ Ndyn_annual_grid <- ggarrange(
 
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Figure6_annualNtrend.png", plot = Ndyn_annual_grid, width = 8, height = 6.5, units = "in")
+# ggsave("./Figure6_annualNtrend.png", plot = Ndyn_annual_grid, width = 8, height = 6.5, units = "in")
 
 ```
 
-#### SI figuress ###
+#### SI figures ###
+
 ### Comparable cumulative metabolism
 Where days that the model can't identify GPP (in green) or ER (orange) but there is DO, we then assume the metabolism (GPP/ER) to be 0 
 
@@ -1991,6 +1597,25 @@ templt_1
 
 ```{r, warning=F, size = 'small', echo=F, include=F}
 #####
+date_seq <- seq(from = as.Date("2021-03-20"), to = as.Date("2024-10-10"), by = "day")
+
+# Convert the sequence to a dataframe
+date_df <- data.frame(date = date_seq)
+date_df$site <- "BWL"
+date_df$catch <- "BW"
+date_df1 <- data.frame(date = date_seq)
+date_df1$site <- "GBL"
+date_df1$catch <- "GB"
+date_df2 <- data.frame(date = date_seq)
+date_df2$site <- "GBU"
+date_df2$catch <- "GB"
+date_df3 <- data.frame(date = date_seq)
+date_df3$site <- "BWU"
+date_df3$catch <- "BW"
+
+date_datf <- rbind(date_df,date_df1,date_df2, date_df3)
+
+
 date_datf_plt <- date_datf %>%
   mutate(yday=yday(date),
          year=year(date))
@@ -2745,7 +2370,7 @@ tibble(
 
 ```
 
-### **Figure 4**
+
 
 #### Cummulative GPP and ER 
 
@@ -2792,7 +2417,8 @@ Csum_grid_T
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
-# ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig_cumsum_GPP_v2.png", plot = Csum_grid_T, width = 5.5, height = 8.25, units = "in")
+# ggsave("./Fig_cumsum_GPP_v2.png", plot = Csum_grid_T, width = 5.5, height = 8.25, units = "in")
 
 ```
 
+End of script.
