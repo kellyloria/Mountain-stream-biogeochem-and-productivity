@@ -3,9 +3,11 @@ title: 'Streammetabolizer output for BWL- 30 minute data'
 author: "Kelly Loria"
 date: "2025-03-27"
 output:
-   html_document:
-    theme: united
-    highlight: tango
+  github_document:
+    toc: true
+    toc_depth: 3
+    html_preview: false
+always_allow_html: true
 editor_options: 
   markdown: 
     wrap: 72
