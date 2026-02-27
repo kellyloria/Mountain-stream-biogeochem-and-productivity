@@ -22,7 +22,7 @@ Analyses used in manuscript *Mountain stream ecosystem metabolism and nitrogen c
 - Figures for the manuscript: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/blob/main/2026_JGR_figures_stream_metab.md
   - Raw code: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/blob/main/2026_JGR_figures.Rmd
 
-## Extra analysis removed from the analysis
+## Extra analysis removed from the MS
 - *Nitrogen uptake estimates* from the  TSACC method: https://github.com/kellyloria/Mountain-stream-biogeochem-and-productivity/tree/main/Revised_uptake_TSACC%20
 
 # Data hosted by EDI 
