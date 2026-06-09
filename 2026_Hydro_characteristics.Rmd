@@ -652,8 +652,64 @@ summarize_peak_SPflow_date <- function(data) {
 
 ```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=T}
 
-result1 <- summarize_transition_to_zero(result)
-result1
+peak_melt <- summarize_transition_to_zero(result)
+
+peak_melt
+
+```
+
+```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=T}
+
+peak_swe <- summarize_peak_SWE_date(result)
+
+peak_swe
+
+```
+
+```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=T}
+
+peak_flow <- summarize_peak_SPflow_date(result)
+peak_flow
+```
+
+summary(target_snow_df)
+
+```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE, include=T}
+ 
+target_snow_df_temp <- target_snow_dat %>%
+  filter(WaterYear>2020) %>%
+  filter(date < as.Date("2024-10-10")) %>%
+  mutate(site = case_when(
+    site_id == 615 ~ "GBL",
+    site_id %in% c(848) ~ "BWL"))
+
+str(target_snow_df_temp)
+
+seasonal_temps <- target_snow_df_temp %>%
+  mutate(
+    year  = year(date),
+    month = month(date),
+    season_year = if_else(month == 12, year + 1L, year),
+    season = case_when(
+      month %in% c(12, 1, 2) ~ "winter_temp",
+      month %in% c(6, 7, 8)  ~ "summer_temp",
+      TRUE                   ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(season)) %>%
+  group_by(site, site_id, season_year, season) %>%
+  summarise(
+    mean_temp = mean(temperature_mean, na.rm = TRUE),
+    n_days = sum(!is.na(temperature_mean)),
+    .groups = "drop"
+  ) %>%
+  tidyr::pivot_wider(
+    names_from = season,
+    values_from = mean_temp
+  ) %>%
+  rename(year = season_year)
+
+seasonal_temps
 ```
 
 
