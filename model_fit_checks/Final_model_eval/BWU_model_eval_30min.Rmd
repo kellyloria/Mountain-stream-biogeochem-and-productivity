@@ -334,6 +334,137 @@ kgpp
 
 ```
 
+
+
+
+```{r, warning=FALSE, size='small', echo=FALSE, fig.align="center", fig.width=8, fig.height=5}
+
+
+library(dplyr)
+library(ggplot2)
+library(viridis)
+library(cowplot)
+library(lubridate)
+library(readr)
+
+
+mod.env.full <- input_dat %>%
+  mutate(date = as.Date(solar.time)) %>%
+  group_by(date) %>%
+  summarise(
+    DO.obs     = mean(DO.obs, na.rm = TRUE),
+    DO.sat     = mean(DO.sat, na.rm = TRUE),
+    depth      = mean(depth, na.rm = TRUE),
+    temp.water = mean(temp.water, na.rm = TRUE),
+    light      = mean(light, na.rm = TRUE),
+    discharge  = mean(discharge, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+plot_dat <- met.full %>%
+  filter(
+    GPP_daily_Rhat <= 1.05,
+    GPP_2.5pct > 0,
+     ER_daily_Rhat <= 1.05,
+     ER_97.5pct < 0,
+     K600_daily_Rhat <= 1.05) %>%
+  mutate(
+    water_year = year(date %m+% months(3))
+  ) %>%left_join(mod.env.full, by = "date") %>%
+  filter(water_year<2025)
+
+base_theme <- theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.grid.major = element_line(linewidth = 0.2, colour = "grey90"),
+    legend.title = element_text(size = 11),
+    legend.position = "right"
+  )
+
+col_scale <- scale_color_viridis_d(
+  name = "Water year",
+  option = "viridis",
+  end = 0.95
+)
+
+gpp_unit <- expression(
+  paste("GPP (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")
+)
+
+er_unit <- expression(
+  paste("|ER| (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")
+)
+
+k600_unit <- expression(
+  paste(K[600], " (m ", d^{-1}, ")")
+)
+q_unit    <- expression(paste("Discharge (m"^3, " ", s^{-1}, ")"))
+
+ker <- ggplot(plot_dat,
+              aes(x = K600_daily_mean,
+                  y = ER_daily_mean,
+                  color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(x = k600_unit, y = er_unit) +
+  col_scale +
+  base_theme
+
+kgpp <- ggplot(plot_dat,
+               aes(x = GPP_daily_mean,
+                   y = K600_daily_mean,
+                   color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(x = gpp_unit, y = k600_unit) +
+  col_scale +
+  base_theme
+
+k.q <- ggplot(plot_dat,
+              aes(x = discharge,
+                  y = K600_daily_mean,
+                  color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(x = q_unit, y = k600_unit) +
+  col_scale +
+  base_theme
+
+ER_gpp <- plot_dat %>%
+  mutate(negER = -ER_daily_mean) %>%
+  ggplot(aes(x = negER,
+             y = GPP_daily_mean,
+             color = factor(water_year))) +
+  geom_point(size = 2, alpha = 0.85) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+              color = "grey40") +
+  labs(
+    x = expression(paste("|ER| (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")),
+    y = gpp_unit
+  ) +
+  col_scale +
+  base_theme
+
+legend <- cowplot::get_legend(ker)
+
+p1 <- cowplot::plot_grid(
+  ker + theme(legend.position = "none"),
+  kgpp + theme(legend.position = "none"),
+  k.q + theme(legend.position = "none"),
+  ER_gpp + theme(legend.position = "none"),
+  labels = c("A", "B", "C", "D"),
+  ncol = 2
+)
+
+final_plot <- cowplot::plot_grid(p1, legend, rel_widths = c(1, 0.18))
+final_plot
+
+
+```
+
 The direction of the K600 ~ flow relationship looks more logical, where K600 increases with flow.
 ER and K600 are positively correlated (0.686), GPP and K600 are negatively correlated (-0.587). but, less strongly relative to the lower reach (GBL). The relationship between K600 and flow appears to be positive but still inflected in a strange way. 
 

@@ -45,7 +45,7 @@ library(cowplot)
 library(zoo)
 library(readxl)
 library(ggpubr)
-library(streamMetabolizer)
+#library(streamMetabolizer)
 library(knitr)
 library(kableExtra)
 library(plotly)
@@ -196,20 +196,20 @@ fits.full21 <- read_csv("./GBL_21_newbin_2025-02-02_errors.csv_mod_and_obs_DO.cs
     DO_pr_sat_mod = c((DO.mod/DO.sat) * 100))
 
 
-met.full <- read_csv("./GBL_Full_30_2025-03-27_daily.csv") %>%
+met.full <- read_csv("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/analysis/GBL_metab_revision/GBL_Bayes_linearK600_measured_prior_20260607_fit.csv") %>%
   mutate(year = year(date))%>%
   mutate(jday = yday(date))%>%
   mutate(mon = month(date))%>%
    mutate(lab = "Full")%>%
   mutate(NEP_daily_mean = GPP_daily_mean + ER_daily_mean)  
 
-fits.full <- read_csv("./GBL_Full_30_2025-03-27_errors.csv_mod_and_obs_DO.csv") %>%
-  mutate(week = week(solar.time))%>%
-  mutate(jday = yday(solar.time)) %>%
-     mutate(lab = "Full")%>%
-  mutate(
-    DO_pr_sat = c((DO.obs/DO.sat) * 100), 
-    DO_pr_sat_mod = c((DO.mod/DO.sat) * 100))
+# fits.full <- read_csv("./GBL_Full_30_2025-03-27_errors.csv_mod_and_obs_DO.csv") %>%
+#   mutate(week = week(solar.time))%>%
+#   mutate(jday = yday(solar.time)) %>%
+#      mutate(lab = "Full")%>%
+#   mutate(
+#     DO_pr_sat = c((DO.obs/DO.sat) * 100), 
+#     DO_pr_sat_mod = c((DO.mod/DO.sat) * 100))
 
 met.df <- rbind(met.May23, 
                 met.May21, 
@@ -828,13 +828,142 @@ print(GPP_ER_cor)
 
 
 ```{r, warning=F, size = 'small', echo=FALSE, fig.align = "center", fig.width=8, fig.height = 5}
+# 
+# library(dplyr)
+# library(ggplot2)
+# library(viridis)
+# library(cowplot)
+# library(lubridate)
+# 
+# 
+# mod.env.full <- input_dat %>%
+#   mutate(date = as.Date(solar.time)) %>%
+#   group_by(date) %>%
+#   summarise(
+#     DO.obs     = mean(DO.obs, na.rm = TRUE),
+#     DO.sat     = mean(DO.sat, na.rm = TRUE),
+#     depth      = mean(depth, na.rm = TRUE),
+#     temp.water = mean(temp.water, na.rm = TRUE),
+#     light      = mean(light, na.rm = TRUE),
+#     discharge  = mean(discharge, na.rm = TRUE),
+#     .groups = "drop"
+#   )
+# 
+# new_df_clean <- new_df_clean %>%
+#   mutate(
+#     date = as.Date(date),
+#     water_year = year(date %m+% months(3))
+#   )
+# 
+# plot_dat <- new_df_clean %>%
+#   left_join(mod.env.full, by = "date")
+# 
+# base_theme <- theme_bw(base_size = 12) +
+#   theme(
+#     panel.grid.minor = element_blank(),
+#     panel.grid.major = element_line(linewidth = 0.2, colour = "grey90"),
+#     legend.title = element_text(size = 11),
+#     legend.position = "right"
+#   )
+# 
+# col_scale <- scale_color_viridis_d(
+#   name = "Water year",
+#   option = "viridis",   # better for time gradients
+#   end = 0.95
+# )
+# 
+# 
+# gpp_unit  <- expression(paste("GPP (g O"[2], " ", m^{-2}, " ", d^{-1}, ")"))
+# er_unit   <- expression(paste("ER (g O"[2], " ", m^{-2}, " ", d^{-1}, ")"))
+# k600_unit <- expression(paste(K[600], " (m ", d^{-1}, ")"))
+# q_unit    <- expression(paste("Discharge (m"^3, " ", s^{-1}, ")"))
+# 
+# 
+# 
+# ker <- ggplot(plot_dat,
+#               aes(x = K600_daily_mean,
+#                   y = ER_daily_mean,
+#                   color = factor(water_year))) +
+#   geom_point(size = 2, alpha = 0.85) +
+#   geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+#               color = "grey40") +
+#   labs(x = k600_unit, y = er_unit) +
+#   col_scale +
+#   base_theme
+# 
+# kgpp <- ggplot(plot_dat,
+#                aes(x = GPP_daily_mean,
+#                    y = K600_daily_mean,
+#                    color = factor(water_year))) +
+#   geom_point(size = 2, alpha = 0.85) +
+#   geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+#               color = "grey40") +
+#   labs(x = gpp_unit, y = k600_unit) +
+#   col_scale +
+#   base_theme
+# 
+# k.q <- ggplot(plot_dat,
+#               aes(x = discharge,
+#                   y = K600_daily_mean,
+#                   color = factor(water_year))) +
+#   geom_point(size = 2, alpha = 0.85) +
+#   geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+#               color = "grey40") +
+#   labs(x = q_unit, y = k600_unit) +
+#   col_scale +
+#   base_theme
+# 
+# ER_gpp <- plot_dat %>%
+#   mutate(negER = -ER_daily_mean) %>%
+#   ggplot(aes(x = negER,
+#              y = GPP_daily_mean,
+#              color = factor(water_year))) +
+#   geom_point(size = 2, alpha = 0.85) +
+#   geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
+#               color = "grey40") +
+#   labs(
+#     x = expression(paste("\u2212ER (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")),
+#     y = gpp_unit
+#   ) +
+#   col_scale +
+#   base_theme
+# 
+# 
+# legend <- cowplot::get_legend(ker)
+# 
+# p1 <- cowplot::plot_grid(
+#   ker + theme(legend.position = "none"),
+#   kgpp + theme(legend.position = "none"),
+#   k.q + theme(legend.position = "none"),
+#   ER_gpp + theme(legend.position = "none"),
+#   labels = c("A","B","C","D"),
+#   ncol = 2
+# )
+# 
+# final_plot <- cowplot::plot_grid(p1, legend, rel_widths = c(1, 0.18))
+# final_plot
+# 
+```
+
+```{r, warning=FALSE, size='small', echo=FALSE, fig.align="center", fig.width=8, fig.height=5}
+
 
 library(dplyr)
 library(ggplot2)
 library(viridis)
 library(cowplot)
 library(lubridate)
+library(readr)
 
+met.full <- read_csv("/Users/kellyloria/Documents/Publications/CH1 biogeochem linkages/analysis/GBL_metab_revision/GBL_Bayes_linearK600_measured_prior_20260607_fit.csv") %>%
+  mutate(
+    date = as.Date(date),
+    year = year(date),
+    jday = yday(date),
+    mon = month(date),
+    lab = "Full",
+    NEP_daily_mean = GPP_daily_mean + ER_daily_mean
+  )
 
 mod.env.full <- input_dat %>%
   mutate(date = as.Date(solar.time)) %>%
@@ -849,14 +978,17 @@ mod.env.full <- input_dat %>%
     .groups = "drop"
   )
 
-new_df_clean <- new_df_clean %>%
+plot_dat <- met.full %>%
+  filter(
+    GPP_daily_Rhat <= 1.05,
+  #   GPP_97.5pct > 0,
+     ER_daily_Rhat <= 1.05)%>%
+  #   ER_2.5pct < 0,
+     #K600_daily_Rhat <= 1.05) %>%
   mutate(
-    date = as.Date(date),
     water_year = year(date %m+% months(3))
-  )
-
-plot_dat <- new_df_clean %>%
-  left_join(mod.env.full, by = "date")
+  ) %>%left_join(mod.env.full, by = "date") %>%
+  filter(water_year<2025)
 
 base_theme <- theme_bw(base_size = 12) +
   theme(
@@ -868,17 +1000,22 @@ base_theme <- theme_bw(base_size = 12) +
 
 col_scale <- scale_color_viridis_d(
   name = "Water year",
-  option = "viridis",   # better for time gradients
+  option = "viridis",
   end = 0.95
 )
 
+gpp_unit <- expression(
+  paste("GPP (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")
+)
 
-gpp_unit  <- expression(paste("GPP (g O"[2], " ", m^{-2}, " ", d^{-1}, ")"))
-er_unit   <- expression(paste("ER (g O"[2], " ", m^{-2}, " ", d^{-1}, ")"))
-k600_unit <- expression(paste(K[600], " (m ", d^{-1}, ")"))
+er_unit <- expression(
+  paste("|ER| (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")
+)
+
+k600_unit <- expression(
+  paste(K[600], " (m ", d^{-1}, ")")
+)
 q_unit    <- expression(paste("Discharge (m"^3, " ", s^{-1}, ")"))
-
-
 
 ker <- ggplot(plot_dat,
               aes(x = K600_daily_mean,
@@ -922,12 +1059,11 @@ ER_gpp <- plot_dat %>%
   geom_smooth(method = "lm", se = FALSE, linetype = "dashed",
               color = "grey40") +
   labs(
-    x = expression(paste("\u2212ER (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")),
+    x = expression(paste("|ER| (g O"[2], " ", m^{-2}, " ", d^{-1}, ")")),
     y = gpp_unit
   ) +
   col_scale +
   base_theme
-
 
 legend <- cowplot::get_legend(ker)
 
@@ -936,7 +1072,7 @@ p1 <- cowplot::plot_grid(
   kgpp + theme(legend.position = "none"),
   k.q + theme(legend.position = "none"),
   ER_gpp + theme(legend.position = "none"),
-  labels = c("A","B","C","D"),
+  labels = c("A", "B", "C", "D"),
   ncol = 2
 )
 

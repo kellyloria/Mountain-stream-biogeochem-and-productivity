@@ -99,10 +99,9 @@ comparisons <- list(
 )
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, include=F}
 
-covariat_datq <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/analysis/Mtn-stream-biogeochem-productivity/complied_data_JGR_MS_metab_26_06_rev.RDS")
+covariat_datq <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/analysis/Mtn-stream-biogeochem-productivity/complied_data_JGR_MS_metab_26_06_29_rev.RDS")
 ```
 
 ```{r, warning=F, size = 'small', echo=F, include=F}
@@ -110,7 +109,6 @@ covariat_datq <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeoch
 nitrogen_data <- readRDS("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/analysis/Mtn-stream-biogeochem-productivity/EGRET_infill_WC.RDS")
 
 ```
-
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=10, fig.height=12}
 # Separate out BW 
@@ -192,6 +190,23 @@ GBU_KD_plot <- ggplot() +
 GBU_KD_plot
 
 
+### new 2026-06-20 plot
+
+GBU_KD_plot2 <- ggplot(covariat_datq%>%dplyr::filter(site=="GBU" & water_year<2025), aes(x = GPP_mean, y = ER_mean, color = as.factor(water_year))) +
+  geom_density_2d(bins=10, size=1) + 
+  geom_point(alpha=0.5, shape=17)+
+  geom_abline(slope = -1, intercept = 0, linetype = "dashed", color = "black") +  # 1:1 line
+xlab(expression(GPP~(g~O[2]~m^-2~d^-1))) +
+ ylab(expression(ER~(g~O[2]~m^-2~d^-1))) +
+    scale_y_continuous(limits = c(-30, 0)) +  # Ensure zero is visible
+      scale_x_continuous(position = "top", limits = c(0, 13)) +  # Set x limits & move axis
+  scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94", "#fad311")) +
+#   scale_color_viridis_d(option = "viridis", name = "Water year") +
+  theme_classic() +
+            annotate("text", x = 7, y = -28, label = "Upper reach", size = 4, fontface = "bold", hjust = 0.5) 
+
+
+
 GBL_DF_clean <- covariat_datq%>%dplyr::filter(site=="GBL") %>%
   filter(!is.na(GPP_mean) & !is.na(ER_mean))%>%
   dplyr::select(date, water_year, GPP_mean, ER_mean)
@@ -241,13 +256,13 @@ BWU_KD_plot <- BWU_KD_plot +
 GBL_KD_plot <- GBL_KD_plot2 + 
   guides(color = guide_legend(title = "Water year", nrow = 2))
 
-GBU_KD_plot <- GBU_KD_plot + 
+GBU_KD_plot <- GBU_KD_plot2 + 
   guides(color = guide_legend(title = "Water year", nrow = 2))
 ```
 
-###  *Figure 2*
+### *Figure 2*
 
-GPP and ER regimes at each reach. 
+GPP and ER regimes at each reach.
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=7}
 # Arrange plots with shared legend at the bottom
@@ -270,18 +285,239 @@ KD_coeff_grid
 
 ```
 
+### Potential controls on stream metabolism
 
+Large stream:
+
+```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=3}
+library(lme4)
+
+bw_dat <- covariat_datq %>% filter(catch == "BW")
+
+
+gpp_mod_bw <- lmer(
+  GPP_mean ~ scale(PAR_inc) +
+ #   scale(wt) +
+    scale(Q_m) +
+    (1|site),
+  data = bw_dat
+)
+
+summary(gpp_mod_bw)
+
+```
+
+```{r, warning=F, size = 'small', echo=F}
+
+r.squaredGLMM(gpp_mod_bw)
+
+```
+
+#### Check temporal autocorrelation
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, fig.height=3}
+
+acf(residuals(gpp_mod_bw),
+    main = "ACF of GLMM residuals")
+```
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, fig.height=3}
+
+library(nlme)
+library(dplyr)
+
+bw_dat %>%
+  filter(site == "BWL") %>%
+  count(site, date) %>%
+  filter(n > 1)
+
+bw_dat <- covariat_datq %>%
+  filter(catch == "BW") %>%
+  group_by(site, date) %>%
+  summarize(
+    GPP_mean = mean(GPP_mean, na.rm = TRUE),
+    PAR_inc = mean(PAR_inc, na.rm = TRUE),
+    Q_m = mean(Q_m, na.rm = TRUE),
+   # wt = mean(wt, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(site, date)
+
+bw_gpp_ar1 <- lme(
+  GPP_mean ~ scale(PAR_inc) + scale(Q_m), #+ scale(wt),
+  random = ~ 1 | site,
+  correlation = corAR1(form = ~ as.numeric(date) | site),
+  data = bw_dat,
+  method = "ML",
+  na.action = na.omit
+)
+
+summary(bw_gpp_ar1)
+acf(resid(bw_gpp_ar1, type = "normalized"),
+    main = "ACF of AR(1) model residuals")
+
+ r.squaredLR(bw_gpp_ar1)
+```
+
+ER
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, fig.height=3}
+
+library(nlme)
+library(dplyr)
+
+bw_dat %>%
+  filter(site == "BWL") %>%
+  count(site, date) %>%
+  filter(n > 1)
+
+bw_dat <- covariat_datq %>%
+  filter(catch == "BW") %>%
+  group_by(site, date) %>%
+  summarize(
+    ER_mean = mean(ER_mean, na.rm = TRUE),
+    Q_m = mean(Q_m, na.rm = TRUE),
+    wt = mean(wt, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(site, date)
+
+bw_er_ar1 <- lme(
+  ER_mean ~   scale(Q_m) + scale(wt),
+  random = ~ 1 | site,
+  correlation = corAR1(form = ~ as.numeric(date) | site),
+  data = bw_dat,
+  method = "ML",
+  na.action = na.omit
+)
+
+summary(bw_er_ar1)
+acf(resid(bw_er_ar1, type = "normalized"),
+    main = "ACF of AR(1) model residuals")
+
+r.squaredLR(bw_er_ar1)
+
+```
+
+
+Small stream:
+
+```{r, warning=F, size = 'small', echo=F}
+library(lme4)
+
+gb_dat <- covariat_datq %>% filter(catch == "GB")
+
+gpp_mod_gb <- lmer(
+  GPP_mean ~ scale(PAR_inc) +
+    #scale(wt) +
+    scale(Q_m) +
+    (1|site),
+  data = gb_dat
+)
+
+summary(gpp_mod_gb)
+```
+
+#### Check temporal autocorrelation
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, fig.height=3}
+
+acf(residuals(gpp_mod_gb),
+    main = "ACF of GLMM residuals")
+```
+
+```{r, warning=F, size = 'small', echo=F}
+
+r.squaredGLMM(gpp_mod_gb)
+
+```
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, fig.height=3}
+
+library(nlme)
+library(dplyr)
+
+gb_dat %>%
+  filter(site == "GBU") %>%
+  count(site, date) %>%
+  filter(n > 1)
+
+gb_dat <- covariat_datq %>%
+  filter(catch == "GB") %>%
+  group_by(site, date) %>%
+  summarize(
+    GPP_mean = mean(GPP_mean, na.rm = TRUE),
+    PAR_inc = mean(PAR_inc, na.rm = TRUE),
+    Q_m = mean(Q_m, na.rm = TRUE),
+   # wt = mean(wt, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(site, date)
+
+gb_gpp_ar1 <- lme(
+  GPP_mean ~ scale(PAR_inc) + scale(Q_m), #+ scale(wt),
+  random = ~ 1 | site,
+  correlation = corAR1(form = ~ as.numeric(date) | site),
+  data = gb_dat,
+  method = "ML",
+  na.action = na.omit
+)
+
+summary(gb_gpp_ar1)
+acf(resid(gb_gpp_ar1, type = "normalized"),
+    main = "ACF of AR(1) model residuals")
+
+
+```
+
+ER
+
+```{r, warning=F, size = 'small', echo=F, fig.width=5, fig.height=3}
+
+library(nlme)
+library(dplyr)
+
+gb_dat %>%
+  filter(site == "GBU") %>%
+  count(site, date) %>%
+  filter(n > 1)
+
+gb_dat <- covariat_datq %>%
+  filter(catch == "GB") %>%
+  group_by(site, date) %>%
+  summarize(
+    ER_mean = mean(ER_mean, na.rm = TRUE),
+    #PAR_inc = mean(PAR_inc, na.rm = TRUE),
+    Q_m = mean(Q_m, na.rm = TRUE),
+    wt = mean(wt, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(site, date)
+
+gb_er_ar1 <- lme(
+  ER_mean ~ #scale(PAR_inc) + 
+    scale(Q_m) + scale(wt),
+  random = ~ 1 | site,
+  correlation = corAR1(form = ~ as.numeric(date) | site),
+  data = gb_dat,
+  method = "ML",
+  na.action = na.omit
+)
+
+summary(gb_er_ar1)
+acf(resid(gb_er_ar1, type = "normalized"),
+    main = "ACF of AR(1) model residuals")
+
+ r.squaredLR(gb_er_ar1)
+```
 
 ### *Figure 3*
 
-Setting: Showing the delayed onset of baseflow in wetter years.
-Color as water year. 
+Setting: Showing the delayed onset of baseflow in wetter years. Color as
+water year.
 
-DOY - April 1 = 91
-DOY - May 1 = 121
-DOY -June 1 = 152
-DOY - Sept 1 = 244
-DOY - Oct 1 = 274
+DOY - April 1 = 91 DOY - May 1 = 121 DOY -June 1 = 152 DOY - Sept 1 =
+244 DOY - Oct 1 = 274
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
 
@@ -390,8 +626,7 @@ BF_sum
 
 ```
 
-
-Read in data from SNOTEL to get SWE timesieries 
+Read in data from SNOTEL to get SWE timesieries
 
 ```{r eval=TRUE, echo = F, error=FALSE, warning=FALSE, message=FALSE}
 # read in the sites data for all SNOTEL sites
@@ -434,7 +669,6 @@ Baseflowplot_df <- Baseflowplot_df %>%
     by = c("site", "date")
   )
 ```
-
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=9, fig.height=4.25}
 
@@ -525,7 +759,6 @@ Baseflowplot_BWL <- local({
 Baseflowplot_BWL
 
 ```
-
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=9, fig.height=4.25}
 
@@ -619,7 +852,6 @@ Baseflowplot_GBL
 
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, fig.width=9, fig.height=6.25}
 
 baseflow_grid <- ggarrange(
@@ -634,8 +866,6 @@ baseflow_grid <- ggarrange(
 
 baseflow_grid
 ```
-
-
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
 # ggsave("/Users/kellyloria/Documents/Publications/CH1\ biogeochem\ linkages/Figs/Fig2_baseflow_combined_rev_06.png", plot = baseflow_grid, width =5.5, height = 6.5, units = "in")
@@ -669,7 +899,6 @@ covariat_ndemand <- covariat_datq %>%
   dplyr::select(site, date, Ndemand)
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 
 ### Quality check on supply calculations:
@@ -684,7 +913,6 @@ morph_counts <- covariat_datq %>%
 
 morph_counts
 ```
-
 
 ```{r, warning=F, size = 'small', echo=F, include=F,fig.width=6, fig.height=4}
 ##### better way to infill width and velocites to get at reach length:
@@ -711,8 +939,6 @@ covariat_datqI <- covariat_datqI %>%
                   rollapplyr(v_m_apr, width = 15, FUN = function(x) mean(x, na.rm = TRUE), fill = NA, partial = TRUE),
                   v_m_apr))
 ```
-
-
 
 #### Calculate nitrogen supply:
 
@@ -742,8 +968,6 @@ covariat_nsupply <- covariat_datqI %>%
                 NO3_supply_new, NH4_supply, PO4_supply, NH4_supply_new, NO3_mgL_i, NH4_mgL_i, PO4_ugL_dl_sw)
 
 ```
-
-
 
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 ndyn <- covariat_datq %>%
@@ -789,7 +1013,6 @@ n_s_grid
 
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=6, fig.height=4}
 ndyn <- covariat_datq %>%
   left_join(covariat_nsupply, by=c("site", "date"))%>%
@@ -798,9 +1021,6 @@ ndyn <- covariat_datq %>%
 summary(ndyn)
 
 ```
-
-
-
 
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
 
@@ -867,9 +1087,6 @@ steepest_slopes <- overall_bf_df %>%
   ungroup() 
 
 ```
-
-
-
 
 ##### Plots of Ratios of NH4+- N supply to demand, ratios NO3-- N supply to demand
 
@@ -962,13 +1179,10 @@ N_demand_plot1
 
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, include=F, fig.width=9, fig.height=4}
 # ggsave("./Nsupply_grid_CH1_SFS_ppt_21_rev_06.png", plot = n_s_grid, width = 8.5, height = 7.75, units = "in")
 
 ```
-
-
 
 ```{r, warning=F, size = 'small', echo=F, include=F}
 covariat_NS_ND <- ndyn %>%
@@ -1057,7 +1271,6 @@ N_demand_plot1
 
 ### *Figure 4*
 
-
 ```{r, warning=F, size = 'small', echo=F,include=T, fig.width=12, fig.height=6}
 
 n_s_grid <- ggarrange(
@@ -1105,12 +1318,11 @@ Ndyn_grid
 
 ```
 
+## Dry to wet year comparisons
 
-## Dry to wet year comparisons 
-###  ANOVA's for differences in at each reach
+### ANOVA's for differences in at each reach
 
-
-##### GPP:
+##### Nitrate supply:
 
 ```{r, warning=F, size = 'small', echo=T, include=T}
 # Define the water years you want on the x-axis, including 2021
@@ -1139,12 +1351,102 @@ summary(anova_n03_sup_gb)
 posthoc_n03 <- TukeyHSD(anova_n03_sup_gb)
 posthoc_n03
 
-#  there are no statistically diffs
+#  2023 was significantly greater than 2021
+
+anova_n03_sup_gbu <- aov(NO3_supply_new ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "GBU", water_year %in% 2021:2023))
+summary(anova_n03_sup_gbu)
+
+posthoc_n03 <- TukeyHSD(anova_n03_sup_gbu)
+posthoc_n03
+
+#  2023 was significantly greater than 2021
 ```
 
 
-##### NO3 supply 
+##### Ammonium supply:
 
+```{r, warning=F, size = 'small', echo=T, include=T}
+# Define the water years you want on the x-axis, including 2021
+desired_years <- c("2021", "2022", "2023")
+
+anova_nh4_sup_bw <- aov(NH4_supply_new ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "BWL", water_year %in% 2021:2023))
+summary(anova_nh4_sup_bw)
+
+posthoc_nh4 <- TukeyHSD(anova_nh4_sup_bw)
+posthoc_nh4
+
+#  2021 is more than 2023 
+
+
+anova_nh4_sup_bw <- aov(NH4_supply_new ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "BWU", water_year %in% 2021:2023))
+summary(anova_nh4_sup_bw)
+
+posthoc_nh4 <- TukeyHSD(anova_nh4_sup_bw)
+posthoc_nh4
+
+#  there are no statistically diffs
+
+anova_nh4_sup_gb <- aov(NH4_supply_new ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "GBL", water_year %in% 2021:2023))
+summary(anova_nh4_sup_gb)
+
+posthoc_nh4 <- TukeyHSD(anova_nh4_sup_gb)
+posthoc_nh4
+
+#  2023 was significantly greater than 2021 and 2022
+
+anova_nh4_sup_gbu <- aov(NH4_supply_new ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "GBU", water_year %in% 2021:2023))
+summary(anova_nh4_sup_gbu)
+
+posthoc_nh4 <- TukeyHSD(anova_nh4_sup_gbu)
+posthoc_nh4
+
+#  2023 was significantly greater than 2021
+```
+
+#####  N demand:
+
+```{r, warning=F, size = 'small', echo=T, include=T}
+# Define the water years you want on the x-axis, including 2021
+desired_years <- c("2021", "2022", "2023")
+
+anova_Ndemand_bw <- aov(Ndemand ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "BWL", water_year %in% 2021:2023))
+summary(anova_Ndemand_bw)
+
+posthoc_dem <- TukeyHSD(anova_Ndemand_bw)
+posthoc_dem
+
+#  Nitrogen demand declined progressively from 2021 > 2022 > 2023
+
+
+anova_Ndemand_bw <- aov(Ndemand ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "BWU", water_year %in% 2021:2023))
+summary(anova_Ndemand_bw)
+
+posthoc_dem <- TukeyHSD(anova_Ndemand_bw)
+posthoc_dem
+
+#  Nitrogen demand also declined progressively from 2021 > 2022 > 2023
+
+anovaNdemand_gb <- aov(Ndemand ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "GBL", water_year %in% 2021:2023))
+summary(anovaNdemand_gb)
+
+posthoc_dem <- TukeyHSD(anovaNdemand_gb)
+posthoc_dem
+
+#  No evidence that nitrogen demand differed among years
+
+anovaNdemand_gbu <- aov(Ndemand ~ as.factor(water_year), data = covariat_NS_ND%>%filter(site == "GBU", water_year %in% 2021:2023))
+summary(anovaNdemand_gbu)
+
+posthoc_dem <- TukeyHSD(anovaNdemand_gbu)
+posthoc_dem
+
+#  Nitrogen demand declined in 2023 relative to the previous two years
+
+```
+
+### Change from wet to dry
+
+##### NO3 supply
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=5, include=T,fig.height=4}
 
@@ -1181,7 +1483,6 @@ NO3_mean_diff_wet_dry <- covariat_NS_ND %>%
 
 NO3_mean_diff_wet_dry
 ```
-
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
 
@@ -1271,10 +1572,9 @@ plot_Nsupply_GBU <- res_GBU$plot
 
 ```
 
-##### NH4 supply 
+##### NH4 supply
 
-
-```{r, warning=F, size = 'small', echo=T, fig.width=5, include=T,fig.height=4}
+```{r, warning=F, size = 'small', echo=F, fig.width=5, include=T,fig.height=4}
 
 desired_years <- c("2021","2022","2023")
 
@@ -1309,7 +1609,6 @@ nh4_mean_diff_wet_dry <- covariat_NS_ND %>%
 
 nh4_mean_diff_wet_dry
 ```
-
 
 ```{r, warning=F, size = 'small', echo=F, fig.width=5, include=FALSE,fig.height=4}
 
@@ -1389,8 +1688,6 @@ res_GBU <- make_site_plot_yearonly("GBU", alpha_letters = 0.10)
 plot_NH4supply_GBU <- res_GBU$plot
 
 ```
-
-
 
 #### N demand
 
@@ -1539,17 +1836,17 @@ Ndyn_annual_grid <- ggarrange(
   
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, include=FALSE}
 # ggsave("./Figure6_annualNtrend_rev_06.png", plot = Ndyn_annual_grid, width = 8, height = 6.5, units = "in")
 
 ```
 
-#### SI figures ###
+#### SI figures
 
 ### Comparable cumulative metabolism
-Where days that the model can't identify GPP (in green) or ER (orange) but there is DO, we then assume the metabolism (GPP/ER) to be 0 
 
+Where days that the model can't identify GPP (in green) or ER (orange)
+but there is DO, we then assume the metabolism (GPP/ER) to be 0
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
@@ -1663,7 +1960,7 @@ wet_2023 <- date_datf_plt_sum %>%
   pull(T_gpp)
 
 
-tibble(
+BWL_per_change_gpp <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
@@ -1673,8 +1970,14 @@ tibble(
 
 ```
 
-## Wet to dry 102.0758
 
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+BWL_per_change_gpp
+```
+
+
+## Wet to dry 102.0758
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
 # Filter the dataset to only include rows where do.obs_m or GPP_mean are not NA
@@ -1766,7 +2069,7 @@ wet_2023 <- date_datf_plt_sum %>%
   pull(T_cm)
 
 
-tibble(
+BWL_per_change_ER <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
@@ -1775,7 +2078,9 @@ tibble(
 
 ```
 
-
+```{r, warning=F, size = 'small', echo=F, include=T}
+BWL_per_change_ER
+```
 
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
@@ -1825,7 +2130,6 @@ templt <- ggplot(filtered_data, aes(x = yday)) +
 templt
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, include=F}
 #####
 date_datf_plt <- date_datf %>%
@@ -1867,16 +2171,19 @@ wet_2023 <- date_datf_plt_sum %>%
   pull(T_cm)
 
 
-tibble(
+BWU_per_change_gpp <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
   pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
 )
 
-
 ```
 
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+BWU_per_change_gpp
+```
 
 
 
@@ -1970,14 +2277,18 @@ wet_2023 <- date_datf_plt_sum %>%
   pull(T_cm)
 
 
-tibble(
+BWU_per_change_er <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
   pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
 )
 
+```
 
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+BWU_per_change_er
 ```
 
 
@@ -2044,14 +2355,14 @@ date_datf_plt_gb <- date_datf_plt %>%
 
 GBL_plot <- ggplot(date_datf_plt_gb, aes(x = yday, y = GPP_cumsum, color = factor(year))) +
   geom_line(size = 1, alpha=0.95) +
-  ylim(0,30) +
+  ylim(0,12) +
   labs(x = "Day of Water Year", color = "Year", 
        title = "GB Lower") +
   ylab(expression(GPP~(g~O[2]~m^-2~yr^-1))) +
     xlab(NULL) +
   scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94")) +
  #   scale_color_viridis_d(option = "viridis",  name = "Year") +
-  theme_classic() + xlim(91, 335)
+  theme_classic() + xlim(91, 335) 
 
 
 # Compute the maximum cumulative GPP for each year
@@ -2075,13 +2386,18 @@ wet_2023 <- date_datf_plt_sum %>%
   dplyr::filter(year == 2023) %>%
   pull(T_cm)
 
-tibble(
+GBL_per_change_gpp <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
   pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
 )
 
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+GBL_per_change_gpp
 ```
 
 
@@ -2151,7 +2467,7 @@ GBL_plot1 <- ggplot(date_datf_plt_gb, aes(x = yday, y = ER_cumsum, color = facto
   ylab(expression("|"~ER~"|"~(g~O[2]~m^-2~yr^-1))) +
   scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94")) +
  #   scale_color_viridis_d(option = "viridis",  name = "Year") +
-  theme_classic() + xlim(91, 335)
+  theme_classic() + xlim(91, 335) +ylim(0,200)
 #xlim(115, 332)
 
 GBL_plot1
@@ -2172,7 +2488,7 @@ wet_2023 <- date_datf_plt_sum %>%
   dplyr::filter(year == 2023) %>%
   pull(T_cm)
 
-tibble(
+GBL_per_change_er <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
@@ -2181,6 +2497,9 @@ tibble(
 ```
 
 
+```{r, warning=F, size = 'small', echo=F, include=T}
+GBL_per_change_er
+```
 
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=9, fig.height=2}
@@ -2248,6 +2567,7 @@ GBU_plot <- ggplot(date_datf_plt_gb, aes(x = yday, y = GPP_cumsum, color = facto
   geom_line(size = 1, alpha=0.95) + 
   labs(x = "Day of Water Year", color = "Year", 
        title = "GB Upper") +
+    ylim(0,12) +
   ylab(expression(GPP~(g~O[2]~m^-2~yr^-1))) +
   scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94")) +
  #   scale_color_viridis_d(option = "viridis",  name = "Year") +
@@ -2269,13 +2589,18 @@ wet_2023 <- date_datf_plt_sum %>%
   dplyr::filter(year == 2023) %>%
   pull(T_cm)
 
-tibble(
+GBU_per_change_gpp <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
   pct_decrease = (wet_2023 - dry_mean) / dry_mean * 100
 )
 
+```
+
+
+```{r, warning=F, size = 'small', echo=F, include=T}
+GBU_per_change_gpp
 ```
 
 
@@ -2329,7 +2654,6 @@ templt <- ggplot(filtered_data, aes(x = yday)) +
 templt
 ```
 
-
 ```{r, warning=F, size = 'small', echo=F, include=F}
 #####
 date_datf_plt <- date_datf %>%
@@ -2342,12 +2666,11 @@ date_datf_plt_gb <- date_datf_plt %>%
 
 GBU_plot1 <- ggplot(date_datf_plt_gb, aes(x = yday, y = ER_cumsum, color = factor(year))) +
   geom_line(size = 1, alpha=0.95) + 
-  ylim(0,600) +
   labs(x = "Day of Water Year", color = "Year") +
   ylab(expression("|"~ER~"|"~(g~O[2]~m^-2~yr^-1))) +
   scale_color_manual(values=c("#440154", "#3B528B", "#4bcc94")) +
  #   scale_color_viridis_d(option = "viridis",  name = "Year") +
-  theme_classic() + xlim(91, 335)
+  theme_classic() + xlim(91, 335) +  ylim(0,200) 
 #xlim(115, 332)
 
 
@@ -2366,7 +2689,7 @@ wet_2023 <- date_datf_plt_sum %>%
   dplyr::filter(year == 2023) %>%
   pull(T_cm)
 
-tibble(
+GBU_per_change_er <- tibble(
   dry_mean = dry_mean,
   wet_2023 = wet_2023,
   diff = wet_2023 - dry_mean,
@@ -2376,10 +2699,14 @@ tibble(
 ```
 
 
+```{r, warning=F, size = 'small', echo=F, include=T}
+GBU_per_change_er
+```
 
-#### Cummulative GPP and ER 
 
-From overlapping DOY observations in each year. 
+#### Cummulative GPP and ER
+
+From overlapping DOY observations in each year.
 
 ```{r, warning=F, size = 'small', echo=F, include=T,fig.width=8, fig.height=8.5}
 
