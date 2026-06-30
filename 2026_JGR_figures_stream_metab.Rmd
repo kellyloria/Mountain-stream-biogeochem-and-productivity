@@ -2357,7 +2357,7 @@ date_datf_plt_gb <- date_datf_plt %>%
 
 GBL_plot <- ggplot(date_datf_plt_gb, aes(x = yday, y = GPP_cumsum, color = factor(year))) +
   geom_line(size = 1, alpha=0.95) +
-  ylim(0,1) +
+  ylim(0,12) +
   labs(x = "Day of Water Year", color = "Year", 
        title = "GB Lower") +
   ylab(expression(GPP~(g~O[2]~m^-2~yr^-1))) +
